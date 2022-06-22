@@ -2,6 +2,7 @@
 
 #include "ToLuau_API.h"
 #include "IToLuauAPI.h"
+#include "ILuauChunkLoader.h"
 #include "lua.h"
 
 #include <vector>
@@ -12,17 +13,42 @@ namespace ToLuau
 {
 	class IScriptLoader;
 
-	class State : public IToLuauAPI
+	class ToLuau_API ILuauState
 	{
-		void Init(lua_State* State);
+	public:
+		~ILuauState() = default;
+		lua_State* GetState() const { return L; }
+
+	protected:
+		lua_State* L = nullptr;
+	};
+
+	class ToLuau_API ToLuauState final : public ILuauState
+	{
+	public:
+		ToLuauState();
+		~ToLuauState();
+
+		ILuauChunkLoader& GetLoader() const { return *Loader; }
+		IToLuauAPI& GetAPI() const { return *API; }
 
 	private:
-		lua_State* L;
-		std::vector<std::shared_ptr<IScriptLoader>> Loaders;
+		std::shared_ptr<ILuauChunkLoader> Loader;
+		std::shared_ptr<IToLuauAPI> API;
 	};
 
-	class IScriptLoader
+	class ToLuau_API ToLuauSandbox : public ILuauState
 	{
-		virtual bool Load(const std::string& path) = 0;
+	public:
+		ToLuauSandbox();
+		~ToLuauSandbox();
+
+		ILuauChunkLoader& GetLoader() const { return *Loader; }
+		IToLuauAPI& GetAPI() const { return *API; };
+
+	private:
+		std::shared_ptr<ILuauChunkLoader> Loader;
+		std::shared_ptr<IToLuauAPI> API;
 	};
+
 }

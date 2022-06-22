@@ -7,9 +7,33 @@
 
 namespace ToLuau
 {
-	void State::Init(lua_State *State)
+
+	ToLuauState::ToLuauState()
 	{
-		this->L = State;
-		luaL_openlibs(State);
+		L = luaL_newstate();
+		luaL_openlibs(L);
+
+		Loader = ILuauChunkLoader::Create(this);
+		API = IToLuauAPI::Create(this);
+		
+	}
+
+	ToLuauState::~ToLuauState()
+	{
+		lua_close(L);
+	}
+
+	ToLuauSandbox::ToLuauSandbox()
+	{
+		L = luaL_newstate();
+		luaL_openlibs(L);
+
+		Loader = ILuauChunkLoader::Create(this);
+		API = IToLuauAPI::Create(this);
+	}
+
+	ToLuauSandbox::~ToLuauSandbox()
+	{
+		lua_close(L);
 	}
 }

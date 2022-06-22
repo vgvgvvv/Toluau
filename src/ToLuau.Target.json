@@ -19,12 +19,13 @@
 
 ],
   "private_source" : [
-"D:/Documents/MyProjects/playground/src/Toluau/src/IToLuauAPI.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/IToLuauAPI.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/ToLuau.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/ToLuau_API.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/Toluau.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/ToluauType.h"
+"E:/Documents/MyProjects/playground/src/Toluau/src/ILuauChunkLoader.cpp",
+"E:/Documents/MyProjects/playground/src/Toluau/src/ILuauChunkLoader.h",
+"E:/Documents/MyProjects/playground/src/Toluau/src/IToLuauAPI.cpp",
+"E:/Documents/MyProjects/playground/src/Toluau/src/IToLuauAPI.h",
+"E:/Documents/MyProjects/playground/src/Toluau/src/ToLuau.cpp",
+"E:/Documents/MyProjects/playground/src/Toluau/src/ToLuau_API.h",
+"E:/Documents/MyProjects/playground/src/Toluau/src/Toluau.h"
 ],
   
   "public_compile_options" : [
