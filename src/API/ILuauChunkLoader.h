@@ -2,6 +2,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "ToLuau_API.h"
 
 class lua_State;
 
@@ -15,17 +16,17 @@ namespace ToLuau
 	using LoaderPtr = std::shared_ptr<class IScriptLoader>;
 
 
-	class IScriptLoader
+	class ToLuau_API IScriptLoader
 	{
 	public:
-		IScriptLoader(ILuauChunkLoader* InOwner) : Owner(InOwner){}
+		explicit IScriptLoader(ILuauChunkLoader* InOwner) : Owner(InOwner){}
 		virtual ~IScriptLoader() = default;
 		virtual bool Load(const std::string& path) = 0;
 	protected:
 		ILuauChunkLoader* Owner;
 	};
 
-	class ILuauChunkLoader
+	class ToLuau_API ILuauChunkLoader
 	{
 	protected:
 		explicit ILuauChunkLoader(ILuauState* InOwner) : Owner(InOwner) {}

@@ -313,6 +313,14 @@ namespace ToLuau
 			}
 		}
 
+		template<typename T>
+		int32_t PushTableItem(lua_State*  L, int32_t Index, T Value)
+		{
+			lua_pushinteger(L, Index);
+			Push(L, Value);
+			lua_settable(L, -3);
+		}
+
 	};
 }
 

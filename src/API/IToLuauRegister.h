@@ -4,6 +4,7 @@
 
 #include <string>
 #include <functional>
+#include "ToLuau_API.h"
 
 #pragma once
 
@@ -14,7 +15,7 @@ namespace ToLuau
 
 	class ILuauState;
 
-	class IToLuauRegister
+	class ToLuau_API IToLuauRegister
 	{
 	protected:
 		explicit IToLuauRegister(ILuauState* InOwner) : Owner(InOwner) {}

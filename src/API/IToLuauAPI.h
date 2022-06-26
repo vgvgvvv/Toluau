@@ -5,12 +5,14 @@
 
 #include "lua.h"
 #include "StackAPI.h"
+#include "Arg.h"
+#include "ToLuau_API.h"
 
 namespace ToLuau
 {
 	class ILuauState;
 
-	class IToLuauAPI
+	class ToLuau_API IToLuauAPI
 	{
 	protected:
 		explicit IToLuauAPI(ILuauState* InOwner) : Owner(InOwner) {}
@@ -23,7 +25,231 @@ namespace ToLuau
 
 		#pragma region Function
 
-		virtual bool GetFuncGlobal(const std::string& LuaFunc, bool& bIsClassFunc) = 0;
+		virtual void CallFunc(const std::string& FuncName) = 0;
+
+		virtual void CallFuncWithArg(const std::string& FuncName, const IArg& Arg) = 0;
+
+		template<typename TArg1>
+		void CallFunc(const std::string& FuncName, TArg1 InArg1)
+		{
+			Arg1<TArg1> Args(InArg1);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+		template<typename TArg1,
+				typename TArg2>
+		void CallFunc(const std::string& FuncName
+				, TArg1 InArg1
+				, TArg2 InArg2)
+		{
+			Arg2<TArg1,
+					TArg2> Args(InArg1,
+			                    InArg2);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+		template<typename TArg1,
+				typename TArg2,
+				typename TArg3>
+		void CallFunc(const std::string& FuncName
+				, TArg1 InArg1
+				, TArg2 InArg2
+				, TArg3 InArg3)
+		{
+			Arg3<TArg1,
+					TArg2,
+					TArg3> Args(InArg1,
+			                    InArg2,
+			                    InArg3);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+		template<typename TArg1,
+				typename TArg2,
+				typename TArg3,
+				typename TArg4>
+		void CallFunc(const std::string& FuncName
+				, TArg1 InArg1
+				, TArg2 InArg2
+				, TArg3 InArg3
+				, TArg4 InArg4)
+		{
+			Arg4<TArg1,
+					TArg2,
+					TArg3,
+					TArg4> Args(InArg1,
+			                    InArg2,
+			                    InArg3,
+			                    InArg4);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+		template<typename TArg1,
+				typename TArg2,
+				typename TArg3,
+				typename TArg4,
+				typename TArg5>
+		void CallFunc(const std::string& FuncName
+				, TArg1 InArg1
+				, TArg2 InArg2
+				, TArg3 InArg3
+				, TArg4 InArg4
+				, TArg5 InArg5)
+		{
+			Arg5<TArg1,
+					TArg2,
+					TArg3,
+					TArg4,
+					TArg5> Args(InArg1,
+			                    InArg2,
+			                    InArg3,
+			                    InArg4,
+			                    InArg5);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+		template<typename TArg1,
+				typename TArg2,
+				typename TArg3,
+				typename TArg4,
+				typename TArg5,
+				typename TArg6>
+		void CallFunc(const std::string& FuncName
+				, TArg1 InArg1
+				, TArg2 InArg2
+				, TArg3 InArg3
+				, TArg4 InArg4
+				, TArg5 InArg5
+				, TArg6 InArg6)
+		{
+			Arg6<TArg1,
+					TArg2,
+					TArg3,
+					TArg4,
+					TArg5,
+					TArg6> Args(InArg1,
+			                    InArg2,
+			                    InArg3,
+			                    InArg4,
+			                    InArg5,
+			                    InArg6);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+		template<typename TArg1,
+				typename TArg2,
+				typename TArg3,
+				typename TArg4,
+				typename TArg5,
+				typename TArg6,
+				typename TArg7>
+		void CallFunc(const std::string& FuncName
+				, TArg1 InArg1
+				, TArg2 InArg2
+				, TArg3 InArg3
+				, TArg4 InArg4
+				, TArg5 InArg5
+				, TArg6 InArg6
+				, TArg7 InArg7)
+		{
+			Arg7<TArg1,
+					TArg2,
+					TArg3,
+					TArg4,
+					TArg5,
+					TArg6,
+					TArg7> Args(InArg1,
+			                    InArg2,
+			                    InArg3,
+			                    InArg4,
+			                    InArg5,
+			                    InArg6,
+			                    InArg7);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+		template<typename TArg1,
+				typename TArg2,
+				typename TArg3,
+				typename TArg4,
+				typename TArg5,
+				typename TArg6,
+				typename TArg7,
+				typename TArg8>
+		void CallFunc(const std::string& FuncName
+				, TArg1 InArg1
+				, TArg2 InArg2
+				, TArg3 InArg3
+				, TArg4 InArg4
+				, TArg5 InArg5
+				, TArg6 InArg6
+				, TArg7 InArg7
+				, TArg8 InArg8)
+		{
+			Arg8<TArg1,
+					TArg2,
+					TArg3,
+					TArg4,
+					TArg5,
+					TArg6,
+					TArg7,
+					TArg8> Args(InArg1,
+			                    InArg2,
+			                    InArg3,
+			                    InArg4,
+			                    InArg5,
+			                    InArg6,
+			                    InArg7,
+			                    InArg8);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+
+		template<typename TArg1,
+				typename TArg2,
+				typename TArg3,
+				typename TArg4,
+				typename TArg5,
+				typename TArg6,
+				typename TArg7,
+				typename TArg8,
+				typename TArg9>
+		void CallFunc(const std::string& FuncName
+					    , TArg1 InArg1
+						, TArg2 InArg2
+						, TArg3 InArg3
+						, TArg4 InArg4
+						, TArg5 InArg5
+						, TArg6 InArg6
+						, TArg7 InArg7
+						, TArg8 InArg8
+						, TArg9 InArg9)
+		{
+			Arg9<TArg1,
+				TArg2,
+				TArg3,
+				TArg4,
+				TArg5,
+				TArg6,
+				TArg7,
+				TArg8,
+				TArg9> Args(InArg1,
+			                InArg2,
+			                InArg3,
+			                InArg4,
+			                InArg5,
+			                InArg6,
+			                InArg7,
+			                InArg8,
+			                InArg9);
+			CallFuncWithArg(FuncName, Args);
+		}
+
+	protected:
+
+		virtual bool GetFuncGlobal(const std::string& LuaFunc, bool* bIsClassFunc) = 0;
+
+		virtual void DoPCall(int32_t ArgNum, int32_t RetNum) = 0;
 
 		#pragma endregion
 

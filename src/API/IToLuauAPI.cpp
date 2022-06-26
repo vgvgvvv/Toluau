@@ -8,6 +8,7 @@
 #include "lua.h"
 #include "Toluau.h"
 
+
 namespace ToLuau
 {
 	class ToLuauAPI : public IToLuauAPI
@@ -15,8 +16,13 @@ namespace ToLuau
 	public:
 		explicit ToLuauAPI(ILuauState* InOwner) : IToLuauAPI(InOwner) {}
 
-		bool GetFuncGlobal(const std::string& LuaFunc, bool &bIsClassFunc) override;
-		void DoPCall(int32_t ArgNum, int32_t RetNum);
+		void CallFunc(const std::string& FuncName) override;
+
+		void CallFunc(const std::string& FuncName, const IArg& Arg) override;
+
+	protected:
+		bool GetFuncGlobal(const std::string& LuaFunc, bool* bIsClassFunc) override;
+		void DoPCall(int32_t ArgNum, int32_t RetNum) override;
 
 	};
 
@@ -25,18 +31,18 @@ namespace ToLuau
 		return std::make_shared<ToLuauAPI>(InOwner);
 	}
 
-	bool ToLuauAPI::GetFuncGlobal(const std::string& LuaFunc, bool &bIsClassFunc)
+	bool ToLuauAPI::GetFuncGlobal(const std::string& LuaFunc, bool* bIsClassFunc)
 	{
 		auto LuaFunName = LuaFunc;
 		if(LuaFunName.empty())
 		{
-			bIsClassFunc = false;
+			*bIsClassFunc = false;
 			return false;
 		}
 
-		bIsClassFunc = LuaFunName.find(':') != std::string::npos;
+		*bIsClassFunc = LuaFunName.find(':') != std::string::npos;
 
-		if(bIsClassFunc)
+		if(*bIsClassFunc)
 		{
 			StringEx::ReplaceAll(LuaFunName, ":", ".");
 		}
@@ -66,7 +72,7 @@ namespace ToLuau
 				lua_remove(L, -1);
 			}
 
-			if(bIsClassFunc && i == Names.size() - 1)
+			if(*bIsClassFunc && i == Names.size() - 1)
 			{
 				lua_pushvalue(L, -2);
 				lua_remove(L, -3);
@@ -90,6 +96,29 @@ namespace ToLuau
 			Lua::Error(msg);
 			lua_pop(L, 1);
 		}
+	}
+
+	void ToLuauAPI::CallFunc(const std::string &FuncName)
+	{
+		bool bIsClassFunc;
+		if (!GetFuncGlobal(FuncName, &bIsClassFunc))
+		{
+			return;
+		}
+
+		DoPCall(bIsClassFunc ? 1 : 0, 0);
+	}
+
+	void ToLuauAPI::CallFunc(const std::string &FuncName, const IArg& Arg)
+	{
+		bool bIsClassFunc;
+		if (!GetFuncGlobal(FuncName, &bIsClassFunc))
+		{
+			return;
+		}
+
+		Arg.PushLua(Owner->GetState());
+		DoPCall(bIsClassFunc ? Arg.Count() + 1 : Arg.Count(), 0);
 	}
 
 }
