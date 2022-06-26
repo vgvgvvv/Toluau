@@ -14,7 +14,7 @@ int main()
 	auto LuaPath = CurrentPath.parent_path().append("Lua");
 	ToLuauState.GetLoader().AddLoadPath(LuaPath.string());
 
-	ToLuauState.GetAPI().CallFunc("main");
-	
+	ToLuauState.GetLoader().Require("main");
+
 	return 0;
 }

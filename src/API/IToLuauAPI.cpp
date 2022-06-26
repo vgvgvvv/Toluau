@@ -18,7 +18,7 @@ namespace ToLuau
 
 		void CallFunc(const std::string& FuncName) override;
 
-		void CallFunc(const std::string& FuncName, const IArg& Arg) override;
+		void CallFuncWithArg(const std::string& FuncName, const IArg& Arg) override;
 
 	protected:
 		bool GetFuncGlobal(const std::string& LuaFunc, bool* bIsClassFunc) override;
@@ -109,7 +109,7 @@ namespace ToLuau
 		DoPCall(bIsClassFunc ? 1 : 0, 0);
 	}
 
-	void ToLuauAPI::CallFunc(const std::string &FuncName, const IArg& Arg)
+	void ToLuauAPI::CallFuncWithArg(const std::string &FuncName, const IArg& Arg)
 	{
 		bool bIsClassFunc;
 		if (!GetFuncGlobal(FuncName, &bIsClassFunc))

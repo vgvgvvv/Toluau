@@ -2,7 +2,11 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <optional>
+#include <functional>
+
 #include "ToLuau_API.h"
+#include "Luau/Compiler.h"
 
 class lua_State;
 
@@ -14,7 +18,6 @@ namespace ToLuau
 	class ILuauChunkLoader;
 
 	using LoaderPtr = std::shared_ptr<class IScriptLoader>;
-
 
 	class ToLuau_API IScriptLoader
 	{
@@ -29,7 +32,12 @@ namespace ToLuau
 	class ToLuau_API ILuauChunkLoader
 	{
 	protected:
-		explicit ILuauChunkLoader(ILuauState* InOwner) : Owner(InOwner) {}
+		explicit ILuauChunkLoader(ILuauState* InOwner) : Owner(InOwner)
+		{
+			CompileOptions.debugLevel = 1;
+			CompileOptions.optimizationLevel = 1;
+			CompileOptions.coverageLevel = 0;
+		}
 	public:
 		virtual ~ILuauChunkLoader() = default;
 
@@ -54,6 +62,9 @@ namespace ToLuau
 	protected:
 		std::vector<std::string> LoadPaths;
 		std::vector<LoaderPtr> Loaders;
-		ILuauState* Owner;
+		ILuauState* Owner = nullptr;
+		Luau::CompileOptions CompileOptions = {};
+
+		std::optional<std::function<std::string(const std::string&)>> DefaultLoadFileFunc;
 	};
 }

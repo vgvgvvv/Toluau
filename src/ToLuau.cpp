@@ -4,6 +4,7 @@
 
 #include "Toluau.h"
 #include "lualib.h"
+#include "API/ToLuauLib.h"
 
 namespace ToLuau
 {
@@ -12,6 +13,7 @@ namespace ToLuau
 	{
 		L = luaL_newstate();
 		luaL_openlibs(L);
+		ToLuau::OpenToLuauLibs(L);
 
 		Loader = ILuauChunkLoader::Create(this);
 		API = IToLuauAPI::Create(this);
@@ -24,17 +26,4 @@ namespace ToLuau
 		lua_close(L);
 	}
 
-	ToLuauSandbox::ToLuauSandbox()
-	{
-		L = luaL_newstate();
-		luaL_openlibs(L);
-
-		Loader = ILuauChunkLoader::Create(this);
-		API = IToLuauAPI::Create(this);
-	}
-
-	ToLuauSandbox::~ToLuauSandbox()
-	{
-		lua_close(L);
-	}
 }

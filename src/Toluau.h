@@ -39,18 +39,4 @@ namespace ToLuau
 		std::shared_ptr<IToLuauRegister> Register;
 	};
 
-	class ToLuau_API ToLuauSandbox : public ILuauState
-	{
-	public:
-		ToLuauSandbox();
-		~ToLuauSandbox();
-
-		ILuauChunkLoader& GetLoader() const { return *Loader; }
-		IToLuauAPI& GetAPI() const { return *API; };
-
-	private:
-		std::shared_ptr<ILuauChunkLoader> Loader;
-		std::shared_ptr<IToLuauAPI> API;
-	};
-
 }

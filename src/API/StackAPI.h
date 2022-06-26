@@ -6,6 +6,7 @@
 
 
 #include <cstdint>
+#include <cassert>
 #include "lua.h"
 #include "lualib.h"
 #include "Util/Util.h"
@@ -22,12 +23,14 @@ namespace ToLuau
 				static int32_t Push(lua_State* L, T Value)
 				{
 					Lua::Error("not support current type !!");
+					assert(false);
 					return 0;
 				}
 
 				static T Check(lua_State* L, int32_t pos)
 				{
 					Lua::Error("not support current type !!");
+					assert(false);
 					return T{};
 				}
 			};
