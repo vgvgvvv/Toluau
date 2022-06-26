@@ -28,7 +28,7 @@ namespace ToLuau
 	class ILuauChunkLoader
 	{
 	protected:
-		ILuauChunkLoader(ILuauState* InOwner) : Owner(InOwner) {}
+		explicit ILuauChunkLoader(ILuauState* InOwner) : Owner(InOwner) {}
 	public:
 		virtual ~ILuauChunkLoader() = default;
 

@@ -1,24 +1,28 @@
-#pragma once
+//
+// Created by 35207 on 2022/6/26 0026.
+//
 
 #include <string>
 #include <functional>
 
-#include "lua.h"
+#pragma once
+
+struct lua_State;
 
 namespace ToLuau
 {
+
 	class ILuauState;
 
-	class IToLuauAPI
+	class IToLuauRegister
 	{
 	protected:
-		IToLuauAPI(ILuauState* InOwner) : Owner(InOwner) {}
+		explicit IToLuauRegister(ILuauState* InOwner) : Owner(InOwner) {}
 	public:
-		virtual ~IToLuauAPI() = default;
 
-		static std::shared_ptr<IToLuauAPI> Create(ILuauState* InOwner);
+		virtual ~IToLuauRegister() = default;
 
-		#pragma region Register
+		static std::shared_ptr<IToLuauRegister> Create(ILuauState* InOwner);
 
 		using LuaFunc = std::function<int(lua_State*)>;
 
@@ -35,15 +39,9 @@ namespace ToLuau
 
 		virtual void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) = 0;
 
-		#pragma endregion
-
-		#pragma region Function
-
-		virtual bool Call(const std::string& GlobalFunctionName) = 0;
-
-		#pragma endregion
-
 	protected:
 		ILuauState* Owner = nullptr;
 	};
+
 }
+

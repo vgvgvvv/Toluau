@@ -1,8 +1,9 @@
 #pragma once
 
 #include "ToLuau_API.h"
-#include "IToLuauAPI.h"
-#include "ILuauChunkLoader.h"
+#include "API/IToLuauAPI.h"
+#include "API/ILuauChunkLoader.h"
+#include "API/IToLuauRegister.h"
 #include "lua.h"
 
 #include <vector>
@@ -35,6 +36,7 @@ namespace ToLuau
 	private:
 		std::shared_ptr<ILuauChunkLoader> Loader;
 		std::shared_ptr<IToLuauAPI> API;
+		std::shared_ptr<IToLuauRegister> Register;
 	};
 
 	class ToLuau_API ToLuauSandbox : public ILuauState

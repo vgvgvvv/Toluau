@@ -15,6 +15,7 @@ namespace ToLuau
 
 		Loader = ILuauChunkLoader::Create(this);
 		API = IToLuauAPI::Create(this);
+		Register = IToLuauRegister::Create(this);
 		
 	}
 

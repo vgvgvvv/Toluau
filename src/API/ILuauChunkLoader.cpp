@@ -32,7 +32,7 @@ namespace ToLuau
 	{
 	public:
 
-		LuauChunkLoader(ILuauState* InOwner);
+		explicit LuauChunkLoader(ILuauState* InOwner);
 
 		bool Require(const std::string& Path) const override;
 
