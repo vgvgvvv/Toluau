@@ -19,22 +19,22 @@
 
 ],
   "private_source" : [
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/Arg.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/ILuauChunkLoader.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/ILuauChunkLoader.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/IToLuauAPI.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/IToLuauAPI.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/IToLuauRegister.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/IToLuauRegister.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/StackAPI.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/StackAPI.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/ToLuauLib.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/API/ToLuauLib.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/ToLuau.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/ToLuau_API.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/Toluau.h",
-"D:/Documents/MyProjects/playground/src/Toluau/src/Util/Util.cpp",
-"D:/Documents/MyProjects/playground/src/Toluau/src/Util/Util.h"
+"E:/Documents/MyProjects/Toluau/src/API/Arg.h",
+"E:/Documents/MyProjects/Toluau/src/API/ILuauChunkLoader.cpp",
+"E:/Documents/MyProjects/Toluau/src/API/ILuauChunkLoader.h",
+"E:/Documents/MyProjects/Toluau/src/API/IToLuauAPI.cpp",
+"E:/Documents/MyProjects/Toluau/src/API/IToLuauAPI.h",
+"E:/Documents/MyProjects/Toluau/src/API/IToLuauRegister.cpp",
+"E:/Documents/MyProjects/Toluau/src/API/IToLuauRegister.h",
+"E:/Documents/MyProjects/Toluau/src/API/StackAPI.cpp",
+"E:/Documents/MyProjects/Toluau/src/API/StackAPI.h",
+"E:/Documents/MyProjects/Toluau/src/API/ToLuauLib.cpp",
+"E:/Documents/MyProjects/Toluau/src/API/ToLuauLib.h",
+"E:/Documents/MyProjects/Toluau/src/ToLuau.cpp",
+"E:/Documents/MyProjects/Toluau/src/ToLuau_API.h",
+"E:/Documents/MyProjects/Toluau/src/Toluau.h",
+"E:/Documents/MyProjects/Toluau/src/Util/Util.cpp",
+"E:/Documents/MyProjects/Toluau/src/Util/Util.h"
 ],
   
   "public_compile_options" : [
