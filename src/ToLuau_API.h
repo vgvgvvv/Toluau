@@ -22,7 +22,7 @@
 #endif
 
 #ifndef TOLUAU_DEPRECATED
-#  define TOLUAU_DEPRECATED __attribute__ ((__deprecated__))
+#  define TOLUAU_DEPRECATED __declspec(deprecated)
 #endif
 
 #ifndef TOLUAU_DEPRECATED_EXPORT

@@ -25,7 +25,7 @@ namespace ToLuau
 {
 	namespace StringEx
 	{
-		void StringEx::ReplaceAll(std::string& str, const std::string& from, const std::string& to)
+		void ReplaceAll(std::string& str, const std::string& from, const std::string& to)
 		{
 			if (from.empty())
 				return;

@@ -201,15 +201,15 @@ namespace ToLuau
 			};
 
 			template<>
-			struct StackOperatorWrapper<nullptr_t, void>
+			struct StackOperatorWrapper<std::nullptr_t, void>
 			{
-				static int32_t Push(lua_State* L, nullptr_t Value)
+				static int32_t Push(lua_State* L, std::nullptr_t Value)
 				{
 					lua_pushnil(L);
 					return 1;
 				}
 
-				static nullptr_t Check(lua_State* L, int32_t Pos)
+				static std::nullptr_t Check(lua_State* L, int32_t Pos)
 				{
 					return nullptr;
 				}

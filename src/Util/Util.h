@@ -8,24 +8,25 @@
 #include <vector>
 #include <optional>
 #include <functional>
+#include "ToLuau_API.h"
 
 namespace ToLuau
 {
 	namespace StringEx
 	{
-		static void ReplaceAll(std::string& str, const std::string& from, const std::string& to);
+        ToLuau_API void ReplaceAll(std::string& str, const std::string& from, const std::string& to);
 
-		static std::vector<std::string> Split(const std::string& str, const std::string& split);
+        ToLuau_API std::vector<std::string> Split(const std::string& str, const std::string& split);
 	};
 
 	namespace PathHelper
 	{
-		static std::string Combine(const std::string& p1, const std::string& p2);
+        ToLuau_API std::string Combine(const std::string& p1, const std::string& p2);
 	}
 
 	namespace FileEx
 	{
-		static std::optional<std::string> ReadFile(const std::string& name);
+        ToLuau_API std::optional<std::string> ReadFile(const std::string& name);
 	}
 
 	namespace Lua
@@ -33,8 +34,8 @@ namespace ToLuau
 		extern std::optional<std::function<void(const std::string&)>> OnLog;
 		extern std::optional<std::function<void(const std::string&)>> OnError;
 
-		static void Log(const std::string& Log);
+        ToLuau_API void Log(const std::string& Log);
 
-		static void Error(const std::string& Error);
+        ToLuau_API void Error(const std::string& Error);
 	}
 }

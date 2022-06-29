@@ -16,5 +16,13 @@ int main()
 
 	ToLuauState.GetLoader().Require("main");
 
+    auto L = ToLuauState.GetState();
+
+    luaL_findtable(L, LUA_REGISTRYINDEX, "_MODULES", 1);
+    lua_getfield(L, -1, "main");
+    lua_getfield(L, -1, "main");
+    lua_call(L, 0, 0);
+    lua_settop(L, 0);
+
 	return 0;
 }
