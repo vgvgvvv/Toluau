@@ -3,6 +3,7 @@
 //
 
 #include <memory>
+#include <map>
 
 #include "IToLuauRegister.h"
 
@@ -21,6 +22,10 @@ namespace ToLuau
 
 		void RegFunction(const std::string& FuncName, LuaFunc Func) override;
 		void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) override;
+    private:
+        std::map<std::string, int32_t> EnumRefDict;
+        std::map<std::string, int32_t> StaticLibRefDict;
+        std::map<std::string, int32_t> ClassMetaRefDict;
 	};
 
 	std::shared_ptr<IToLuauRegister> IToLuauRegister::Create(ILuauState *InOwner)

@@ -11,22 +11,39 @@
 
 namespace ToLuau
 {
+    std::map<lua_State*, const ILuauState*> ILuauState::AllLuauState;
 
-	ToLuauState::ToLuauState()
+    ILuauState::ILuauState()
+    {
+        L = luaL_newstate();
+        luaL_openlibs(L);
+        ToLuau::OpenToLuauLibs(L);
+
+        AllLuauState.insert(std::pair(L, this));
+
+    }
+
+    const ILuauState* ILuauState::GetByRawState(lua_State* TargetState)
+    {
+        auto It = AllLuauState.find(TargetState);
+        if(It != AllLuauState.end())
+        {
+            return It->second;
+        }
+        return nullptr;
+    }
+
+    ToLuauState::ToLuauState() : ILuauState()
 	{
-		L = luaL_newstate();
-		luaL_openlibs(L);
-		ToLuau::OpenToLuauLibs(L);
-
 		Loader = ILuauChunkLoader::Create(this);
 		API = IToLuauAPI::Create(this);
 		Register = IToLuauRegister::Create(this);
-		
 	}
 
 	ToLuauState::~ToLuauState()
 	{
 		lua_close(L);
 	}
+
 
 }

@@ -4,6 +4,8 @@
 
 #include "ToLuauLib.h"
 #include "StackAPI.h"
+#include "ToLuau.h"
+#include "ILuauChunkLoader.h"
 #include "Util/Util.h"
 
 namespace ToLuau
@@ -52,8 +54,20 @@ namespace ToLuau
 
 		static int Require(lua_State* L)
 		{
-			// TODO
-			return 0;
+            auto State = ILuauState::GetByRawState(L);
+            if(!State)
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+            if(!lua_isstring(L, -1))
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+            auto Name = lua_tostring(L, -1);
+            State->GetLoader().Require(Name);
+			return 1;
 		}
 
 		static const luaL_Reg Reg[] = {
