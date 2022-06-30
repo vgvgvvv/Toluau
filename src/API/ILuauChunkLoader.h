@@ -42,7 +42,7 @@ namespace ToLuau
 
 		virtual bool Require(const std::string& Path) const = 0;
 
-		virtual bool RequireFromFile(const std::string& Path) const = 0;
+		virtual bool RequireFromFile(const std::string& Path, const std::string& FileName) const = 0;
 
 		const std::vector<std::string>& GetLoadPaths() const;
 

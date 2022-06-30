@@ -2,12 +2,10 @@
 
 local Module = {}
 
-log("test")
+toluau.log("test", "hxiasd", 123123)
 
-function Module.main()
-
-	log("hello world")
-
+function Module.entry()
+	toluau.log("hello world")
 end
 
 return Module;

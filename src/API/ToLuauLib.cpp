@@ -13,17 +13,19 @@ namespace ToLuau
 		static int Log(lua_State* L)
 		{
 			int32_t N = lua_gettop(L);
-			for(int i = 0; i <= N; i++)
+            std::string result;
+			for(int i = 1; i <= N; i++)
 			{
 				size_t l;
 				const char* s = luaL_tolstring(L, i, &l); /* convert to string using __tostring et al */
 				if(i > 1)
 				{
-					Lua::Log("\t");
+                    result += "\t";
 				}
-				Lua::Log(std::string{s, l});
-				lua_pop(L, 1); /* pop result */
+                result += s;
+                lua_pop(L, 1); /* pop result */
 			}
+            Lua::Log(result);
 			Lua::Log("\n");
 			return 0;
 		}
@@ -31,17 +33,19 @@ namespace ToLuau
 		static int Error(lua_State* L)
 		{
 			int32_t N = lua_gettop(L);
-			for(int i = 0; i <= N; i++)
+            std::string result;
+			for(int i = 1; i <= N; i++)
 			{
 				size_t l;
 				const char* s = luaL_tolstring(L, i, &l); /* convert to string using __tostring et al */
 				if(i > 1)
 				{
-					Lua::Error("\t");
+                    result += "\t";
 				}
-				Lua::Error(std::string{s, l});
-				lua_pop(L, 1); /* pop result */
+                result += s;
+                lua_pop(L, 1); /* pop result */
 			}
+            Lua::Error(result);
 			Lua::Error("\n");
 			return 0;
 		}
@@ -49,13 +53,14 @@ namespace ToLuau
 		static int Require(lua_State* L)
 		{
 			// TODO
-			return 1;
+			return 0;
 		}
 
 		static const luaL_Reg Reg[] = {
 				{"log", Log},
-				{"log_error", Log},
-				{"require", Require}
+				{"log_error", Error},
+				{"require", Require},
+                {NULL, NULL},
 		};
 	}
 
@@ -66,7 +71,8 @@ namespace ToLuau
 	}
 
 	static const luaL_Reg ToLuauLibs[] = {
-			{LUA_TOLUAULIBNAME, luaopen_toluau}
+			{LUA_TOLUAULIBNAME, luaopen_toluau},
+            {NULL, NULL}
 	};
 
 	void OpenToLuauLibs(lua_State *L)

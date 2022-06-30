@@ -3,8 +3,10 @@
 //
 
 #include <iostream>
+#include "lua.h"
 #include "Util.h"
 #include "Luau/Common.h"
+
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -51,6 +53,7 @@ namespace ToLuau
 			result.push_back(s);
 			return result;
 		}
+
 
 	}
 
@@ -162,7 +165,7 @@ namespace ToLuau
 			}
 			else
 			{
-				std::cout << Log;
+				std::cout << Log << std::endl;
 			}
 		}
 
@@ -174,10 +177,78 @@ namespace ToLuau
 			}
 			else
 			{
-				std::cerr << Error;
+				std::cerr << Error << std::endl;
 			}
 		}
-	}
 
+        void DumpStack(lua_State* L)
+        {
+            auto Top = lua_gettop(L);
+            for(int i = 1; i <= Top; i ++)
+            {
+                lua_pushvalue(L, i);
+                auto TypeId = lua_type(L, -1);
+                auto TypeName = lua_typename(L, TypeId);
+
+                if(lua_isnumber(L, -1) || lua_isstring(L, -1))
+                {
+                    auto CharStr = lua_tostring(L, -1);
+                    LUAU_LOG_F("%d - %s (%s)", i, TypeName, CharStr);
+                }
+                else if(lua_istable(L, -1))
+                {
+                    LUAU_LOG_F("%d - %s", i, TypeName);
+                    DumpTable(L, -1);
+                }
+                else
+                {
+                    LUAU_LOG_F("%d - %s", i, TypeName);
+                }
+                lua_pop(L, 1);
+            }
+        }
+
+        // ref from https://stackoverflow.com/questions/6137684/iterate-through-lua-table
+        void DumpTable(lua_State *L, int32_t Index)
+        {
+            // Push another reference to the table on top of the stack (so we know
+            // where it is, and this function can work for negative, positive and
+            // pseudo indices
+            lua_pushvalue(L, Index);
+            // stack now contains: -1 => table
+            lua_pushnil(L);
+            // stack now contains: -1 => nil; -2 => table
+            while (lua_next(L, -2))
+            {
+                // stack now contains: -1 => value; -2 => key; -3 => table
+                // copy the key so that lua_tostring does not modify the original
+                lua_pushvalue(L, -2);
+                // stack now contains: -1 => key; -2 => value; -3 => key; -4 => table
+                const char *key = lua_tostring(L, -1);
+                auto TypeId = lua_type(L, -2);
+                auto TypeName = lua_typename(L, TypeId);
+                if(lua_isnumber(L, -2) || lua_isstring(L, -2))
+                {
+                    const char *value = lua_tostring(L, -2);
+                    LUAU_LOG_F("%s => %s(%s)\n", key, TypeName, value);
+                }
+                else
+                {
+                    const char *value = lua_tostring(L, -2);
+                    LUAU_LOG_F("%s => %s\n", key, TypeName);
+                }
+                // pop value + copy of key, leaving original key
+                lua_pop(L, 2);
+                // stack now contains: -1 => key; -2 => table
+            }
+            // stack now contains: -1 => table (when lua_next returns 0 it pops the key
+            // but does not push anything.)
+            // Pop table
+            lua_pop(L, 1);
+            // Stack is now the same as it was on entry to this function
+
+        }
+
+    }
 
 }

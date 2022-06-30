@@ -18,11 +18,11 @@ namespace ToLuau
 		bool Load(const std::string& path) override;
 	};
 
-	bool DefaultScriptLoader::Load(const std::string& path)
+	bool DefaultScriptLoader::Load(const std::string& Name)
 	{
 		for (auto& LoadPath : Owner->GetLoadPaths())
 		{
-			if(Owner->RequireFromFile(LoadPath))
+			if(Owner->RequireFromFile(LoadPath, Name))
 			{
 				return true;
 			}
@@ -38,7 +38,7 @@ namespace ToLuau
 
 		bool Require(const std::string& Path) const override;
 
-		bool RequireFromFile(const std::string& Path) const override;
+		bool RequireFromFile(const std::string& Path, const std::string& FileName) const override;
 
 	};
 
@@ -59,101 +59,114 @@ namespace ToLuau
 		return false;
 	}
 
-	bool LuauChunkLoader::RequireFromFile(const std::string& Path) const
+	bool LuauChunkLoader::RequireFromFile(const std::string& Path, const std::string& FileName) const
 	{
 		auto L = Owner->GetState();
 
-		std::string Name = Path;
-		StringEx::ReplaceAll(Name, ".", "/");
+		std::string FinalLoadPath = ToLuau::PathHelper::Combine(Path, FileName);
+        std::string ModuleName = FileName;
+		StringEx::ReplaceAll(ModuleName, ".", "/");
 
-		auto ChunkName = "=" + Name;
+        Lua::Log(StringEx::Format("require name : %s", ModuleName.c_str()));
+
+        auto ChunkName = "=" + ModuleName;
 
 		auto FinishRequire = [](lua_State* L)->int32_t{
 			if (lua_isstring(L, -1))
-				lua_error(L);
+            {
+                size_t Len;
+                auto ErrorInfo = lua_tolstring(L, -1, &Len);
+                std::string ErrorStr(ErrorInfo, Len);
+                LUAU_LOG(ErrorStr);
+            }
 			return 1;
 		};
 
 		luaL_findtable(L, LUA_REGISTRYINDEX, "_MODULES", 1);
 
 		// return the module from the cache
-		lua_getfield(L, -1, Name.c_str());
+		lua_getfield(L, -1, ModuleName.c_str());
 		if (!lua_isnil(L, -1))
 			return FinishRequire(L);
 		lua_pop(L, 1);
 
+        std::string Content;
+        auto TryReadFile = [this, &Content](const std::string& FinalLoadPath)->bool {
+            if(DefaultLoadFileFunc.has_value())
+            {
+                Content = DefaultLoadFileFunc.value()(FinalLoadPath);
+                if(!Content.empty())
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                auto TempContent = FileEx::ReadFile(FinalLoadPath);
+                if(TempContent.has_value())
+                {
+                    Content = TempContent.value();
+                    return true;
+                }
+            }
+            return false;
+        };
 
-		std::string Content;
-		for (const std::string &LoadPath: LoadPaths)
-		{
-			std::string FinalLoadPath = PathHelper::Combine(LoadPath, Name);
-
-			auto TryReadFile = [this, &Content](const std::string& FinalLoadPath)->bool {
-				if(DefaultLoadFileFunc.has_value())
-				{
-					Content = DefaultLoadFileFunc.value()(FinalLoadPath);
-					if(!Content.empty())
-					{
-						return true;
-					}
-				}
-				else
-				{
-					auto TempContent = FileEx::ReadFile(FinalLoadPath);
-					if(TempContent.has_value())
-					{
-						Content = TempContent.value();
-						return true;
-					}
-				}
-				return false;
-			};
-
-			auto LuaPath = FinalLoadPath + ".lua";
-			if(TryReadFile(LuaPath))
-			{
-				break;
-			}
-
-			auto LuauPath = FinalLoadPath + ".luau";
-			if(TryReadFile(LuauPath))
-			{
-				break;
-			}
-		}
+        auto LuaPath = FinalLoadPath + ".lua";
+        if(!TryReadFile(LuaPath))
+        {
+            auto LuauPath = FinalLoadPath + ".luau";
+            if(!TryReadFile(LuauPath))
+            {
+                auto Error = StringEx::Format("cannot read file : %s !", FinalLoadPath.c_str());
+                lua_pushstring(L, Error.c_str());
+                FinishRequire(L);
+                return false;
+            }
+        }
 
 		if(Content.empty())
 		{
+            auto Error = StringEx::Format("file : %s is empty !", FinalLoadPath.c_str());
+            lua_pushstring(L, Error.c_str());
+            FinishRequire(L);
 			return false;
 		}
 
 		std::string ByteCode = Luau::compile(Content, CompileOptions);
 		if (luau_load(L, ChunkName.c_str(), ByteCode.data(), ByteCode.size(), 0) == 0)
 		{
-			auto status = lua_resume(L, NULL, 0);
-			if (status == 0)
-			{
-				if (lua_gettop(L) == 0)
-					lua_pushstring(L, "module must return a value");
-				else if (!lua_istable(L, -1) && !lua_isfunction(L, -1))
-					lua_pushstring(L, "module must return a table or function");
-			}
-			else if (status == LUA_YIELD)
-			{
-				lua_pushstring(L, "module can not yield");
-			}
-			else if (!lua_isstring(L, -1))
-			{
-				lua_pushstring(L, "unknown error while running module");
-			}
+            bool Succ = true;
+            if (lua_gettop(L) == 0)
+            {
+                lua_pushstring(L, "module must return a value");
+                Succ = false;
+            }
+            else if (!lua_istable(L, -1) && !lua_isfunction(L, -1))
+            {
+                lua_pushstring(L, "module must return a table or function");
+                Succ = false;
+            }
+
+            if(Succ)
+            {
+                lua_pushvalue(L, -1);
+                lua_setfield(L, -3, ModuleName.c_str());
+            }
+
+            FinishRequire(L);
+
+            lua_settop(L, 0);
+
+            return Succ;
+
 		}
+        else
+        {
+            FinishRequire(L);
+            return false;
+        }
 
-		lua_pushvalue(L, -1);
-		lua_setfield(L, -4, Name.c_str());
-
-		FinishRequire(L);
-
-		return true;
 	}
 
 	std::shared_ptr<ILuauChunkLoader> ILuauChunkLoader::Create(ILuauState* Owner)
