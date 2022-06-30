@@ -53,7 +53,7 @@ namespace ToLuau
 		{
 			if(Loader->Load(Path))
 			{
-				break;
+				return true;
 			}
 		}
         // if require failed ,push nil
