@@ -8,9 +8,6 @@
 #include "ToLuau_API.h"
 #include "Luau/Compiler.h"
 
-class lua_State;
-
-
 namespace ToLuau
 {
 	class ILuauState;

@@ -1,18 +1,21 @@
 #pragma once
 
-#include "ToLuau_API.h"
-#include "API/IToLuauAPI.h"
-#include "API/ILuauChunkLoader.h"
-#include "API/IToLuauRegister.h"
-#include "lua.h"
-
 #include <vector>
 #include <memory>
 #include <string>
 
+#include "lua.h"
+#include "lualib.h"
+
+#include "ToLuau_API.h"
+
+
 namespace ToLuau
 {
 	class IScriptLoader;
+    class ILuauChunkLoader;
+    class IToLuauAPI;
+    class IToLuauRegister;
 
 	class ToLuau_API ILuauState
 	{

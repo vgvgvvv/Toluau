@@ -2,9 +2,12 @@
 // Created by 35207 on 2022/6/19 0019.
 //
 
-#include "Toluau.h"
+#include "ToLuau.h"
 #include "lualib.h"
 #include "API/ToLuauLib.h"
+#include "API/ILuauChunkLoader.h"
+#include "API/IToLuauAPI.h"
+#include "API/IToLuauRegister.h"
 
 namespace ToLuau
 {

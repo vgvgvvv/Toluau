@@ -6,7 +6,7 @@
 #include "Util/Util.h"
 
 #include "lua.h"
-#include "Toluau.h"
+#include "ToLuau.h"
 
 
 namespace ToLuau
