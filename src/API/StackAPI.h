@@ -15,6 +15,9 @@ namespace ToLuau
 {
 	namespace StackAPI
 	{
+
+		#pragma region push & check
+
 		namespace __DETAIL__
 		{
 			template<typename T, typename = void>
@@ -323,6 +326,8 @@ namespace ToLuau
 			Push(L, Value);
 			lua_settable(L, -3);
 		}
+
+		#pragma endregion
 
 	};
 }

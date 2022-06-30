@@ -13,6 +13,61 @@ namespace ToLuau
 {
 	class ILuauState;
 
+	enum class MetatableEvent : uint8_t
+	{
+		Index = 0,
+		NewIndex,
+		Mode,
+		NameCall,
+		Call,
+		Iter,
+
+		Eq,
+
+		Add,
+		Sub,
+		Mul,
+		Div,
+		Mod,
+		Pow,
+		Unm,
+
+		Len,
+		Lt,
+		Le,
+		Concat,
+		Type
+	};
+
+	const char* const MetatableEventName[] = {
+		/* ORDER TM */
+
+		"__index",
+		"__newindex",
+		"__mode",
+		"__namecall",
+		"__call",
+		"__iter",
+
+		"__eq",
+
+
+		"__add",
+		"__sub",
+		"__mul",
+		"__div",
+		"__mod",
+		"__pow",
+		"__unm",
+
+
+		"__len",
+		"__lt",
+		"__le",
+		"__concat",
+		"__type",
+	};
+
 	class ToLuau_API IToLuauAPI
 	{
 	protected:
@@ -26,6 +81,7 @@ namespace ToLuau
 
 		#pragma region Function
 
+	public:
 		virtual void CallFunc(const std::string& FuncName) = 0;
 
 		virtual void CallFuncWithArg(const std::string& FuncName, const IArg& Arg) = 0;
@@ -253,6 +309,10 @@ namespace ToLuau
 		virtual void DoPCall(int32_t ArgNum, int32_t RetNum) = 0;
 
 		#pragma endregion
+
+	public:
+
+		static const char* GetMtName(MetatableEvent Type);
 
 	protected:
 		ILuauState* Owner = nullptr;

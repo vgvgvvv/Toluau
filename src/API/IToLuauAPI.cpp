@@ -31,6 +31,11 @@ namespace ToLuau
 		return std::make_shared<ToLuauAPI>(InOwner);
 	}
 
+	const char *IToLuauAPI::GetMtName(MetatableEvent Type)
+	{
+		return MetatableEventName[(int32_t)Type];
+	}
+
 	bool ToLuauAPI::GetFuncGlobal(const std::string& LuaFunc, bool* bIsClassFunc)
 	{
 		auto LuaFunName = LuaFunc;
