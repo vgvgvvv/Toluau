@@ -181,8 +181,12 @@ namespace ToLuau
 			}
 		}
 
-        void DumpStack(lua_State* L)
+        void DumpStack(lua_State* L, const std::string& Title)
         {
+            if(!Title.empty())
+            {
+                LUAU_LOG(Title);
+            }
             auto Top = lua_gettop(L);
             for(int i = 1; i <= Top; i ++)
             {

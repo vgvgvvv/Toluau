@@ -51,7 +51,7 @@ namespace ToLuau
 
         ToLuau_API void Error(const std::string& Error);
 
-        ToLuau_API void DumpStack(lua_State* L);
+        ToLuau_API void DumpStack(lua_State* L, const std::string& Title = "");
 
         ToLuau_API void DumpTable(lua_State* L, int32_t Index);
 	}

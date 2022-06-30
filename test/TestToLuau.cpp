@@ -19,29 +19,19 @@ int main()
 
     ToLuauState.GetLoader().Require("main");
 
+
     auto L = ToLuauState.GetState();
 
-    auto Result = luaL_findtable(L, LUA_REGISTRYINDEX, "_MODULES", 1);
-    if(Result)
+    if(lua_isnil(L, -1))
     {
-        LUAU_LOG("_MODULES is not a table")
+        LUAU_LOG("require failed")
+         return 0;
     }
-
-    lua_getfield(L, -1, "main");
-    if (lua_isnil(L, -1))
-    {
-        std::cout << "cannot find main module" << std::endl;
-        return 0;
-    }
-
-    lua_call(L, 0, 1);
-
-    ToLuau::Lua::DumpStack(L);
 
     lua_getfield(L, -1, "entry");
     if (lua_isnil(L, -1))
     {
-        std::cout << "cannot find entry function" << std::endl;
+        LUAU_LOG("cannot find entry function")
         return 0;
     }
 

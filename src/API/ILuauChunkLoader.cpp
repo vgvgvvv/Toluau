@@ -56,6 +56,8 @@ namespace ToLuau
 				break;
 			}
 		}
+        // if require failed ,push nil
+        lua_pushnil(Owner->GetState());
 		return false;
 	}
 
@@ -78,7 +80,9 @@ namespace ToLuau
                 auto ErrorInfo = lua_tolstring(L, -1, &Len);
                 std::string ErrorStr(ErrorInfo, Len);
                 LUAU_LOG(ErrorStr);
+                lua_pop(L, 1);
             }
+
 			return 1;
 		};
 
@@ -150,13 +154,15 @@ namespace ToLuau
 
             if(Succ)
             {
-                lua_pushvalue(L, -1);
-                lua_setfield(L, -3, ModuleName.c_str());
+                lua_pushvalue(L, -1); // table function
+                lua_call(L, 0, 1); // table function module
+                lua_pushvalue(L, -1);   // table function module module
+                lua_setfield(L, -4, ModuleName.c_str()); // table function module
+                lua_remove(L, 1);
+                lua_remove(L, 1);
             }
 
             FinishRequire(L);
-
-            lua_settop(L, 0);
 
             return Succ;
 
