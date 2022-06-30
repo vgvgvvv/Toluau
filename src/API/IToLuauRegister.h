@@ -25,7 +25,7 @@ namespace ToLuau
 
 		static std::shared_ptr<IToLuauRegister> Create(ILuauState* InOwner);
 
-		using LuaFunc = std::function<int(lua_State*)>;
+		using LuaFunc = lua_CFunction;
 
 		virtual void BeginModule(const std::string& ModuleName) = 0;
 		virtual void EndModule() = 0;

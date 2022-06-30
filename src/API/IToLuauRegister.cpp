@@ -138,10 +138,15 @@ namespace ToLuau
 
 	void ToLuaRegister::RegFunction(const std::string& FuncName, LuaFunc Func)
 	{
+		auto L = Owner->GetState();
+		lua_pushstring(L, FuncName.c_str());
+		lua_pushcfunction(L, Func, FuncName.c_str());
+		lua_rawset(L, -3);
 	}
 
 	void ToLuaRegister::RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter)
 	{
+
 	}
 
 }
