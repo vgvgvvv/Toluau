@@ -12,6 +12,7 @@
 #include "IToLuauRegister.h"
 #include "IToLuauAPI.h"
 #include "Util/Util.h"
+#include "ToLuauLib.h"
 
 namespace ToLuau
 {
@@ -26,7 +27,7 @@ namespace ToLuau
 		void EndModule() override;
 
 		void PushModuleName(const std::string& Name);
-		static int ModuleIndexEvent(lua_State* L);
+		static int32_t ModuleIndexEvent(lua_State* L);
 
 		void BeginClass(const std::string& ClassName, const std::string& SuperClassName) override;
 		void EndClass() override;
@@ -34,11 +35,16 @@ namespace ToLuau
 		void BeginEnum(const std::string& EnumName) override;
 		void EndEnum() override;
 
+        static int32_t EnumIndexEvent(lua_State* L);
+        static int32_t EnumNewIndexEvent(lua_State* L);
+
 		void RegFunction(const std::string& FuncName, LuaFunc Func) override;
 		void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) override;
     private:
 
         void PushFullName(int32_t Pos);
+
+        void AddToLoaded();
 
         std::map<std::string, int32_t> EnumRefDict;
         std::map<std::string, int32_t> StaticLibRefDict;
@@ -153,11 +159,50 @@ namespace ToLuau
 
 	void ToLuaRegister::BeginEnum(const std::string& EnumName)
 	{
+        auto L = Owner->GetState();
+        auto FullName = CurrentModuleName + "." + EnumName;
+        lua_pushstring(L, EnumName.c_str()); // enumname
+        lua_newtable(L); // enumname table
+
+        lua_pushvalue(L, -1); // enumname table table
+        auto Ref = lua_ref(L, LUA_REGISTRYINDEX); // enumname table
+        EnumRefDict.insert(std::make_pair(FullName, Ref));
+
+        AddToLoaded(); // enumname table
+        lua_newtable(L); // enumname table metatable
+
+        lua_pushstring(L, ".name"); // enumname table metatable .name
+        PushFullName(-4); // enumname table metatable .name fullname
+        lua_rawset(L, -3);
+
+        lua_pushstring(L, IToLuauAPI::GetMtName(MetatableEvent::Index));
+        lua_pushcfunction(L, EnumIndexEvent, (FullName + " Index").c_str());
+        lua_rawset(L, -3);
+
+        lua_pushstring(L, IToLuauAPI::GetMtName(MetatableEvent::NewIndex));
+        lua_pushcfunction(L, EnumNewIndexEvent, (FullName + " NewIndex").c_str());
+        lua_rawset(L, -3);
+
 	}
 
 	void ToLuaRegister::EndEnum()
 	{
+        auto L = Owner->GetState();
+        lua_setmetatable(L, -2);
+        lua_rawset(L, -3);
 	}
+
+    int32_t ToLuaRegister::EnumIndexEvent(lua_State *L)
+    {
+        // TODO
+        return 0;
+    }
+
+    int32_t ToLuaRegister::EnumNewIndexEvent(lua_State *L)
+    {
+        // TODO
+        return 0;
+    }
 
 	void ToLuaRegister::RegFunction(const std::string& FuncName, LuaFunc Func)
 	{
@@ -226,6 +271,18 @@ namespace ToLuau
             lua_pushvalue(L, Pos);
         }
     }
+
+    void ToLuaRegister::AddToLoaded()
+    {
+        auto L = Owner->GetState();
+        lua_getref(L, TOLUAU_LOADED_REF); // name table preload
+        PushFullName(-3); // name table preload fullname
+        lua_pushvalue(L, -3); // name table preload fullname table
+        lua_rawset(L, -3); // name table preload
+        lua_pop(L, 1);
+    }
+
+
 
 
 }
