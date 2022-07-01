@@ -10,5 +10,7 @@
 
 namespace ToLuau
 {
+    int32_t TOLUAU_LOADED_REF = 21;
+
 	void OpenToLuauLibs(lua_State* L);
 }

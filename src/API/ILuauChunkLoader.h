@@ -38,6 +38,8 @@ namespace ToLuau
 	public:
 		virtual ~ILuauChunkLoader() = default;
 
+        const ILuauState* GetOwner() const { return Owner; }
+
 		static std::shared_ptr<ILuauChunkLoader> Create(ILuauState* Owner);
 
 		virtual bool Require(const std::string& Path) const = 0;

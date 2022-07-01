@@ -75,6 +75,8 @@ namespace ToLuau
 	public:
 		virtual ~IToLuauAPI() = default;
 
+        const ILuauState* GetOwner() const { return Owner; }
+
 		using LuaFunc = std::function<int32_t(lua_State*)>;
 
 		static std::shared_ptr<IToLuauAPI> Create(ILuauState* InOwner);

@@ -18,6 +18,7 @@ namespace ToLuau
     class IToLuauAPI;
     class IToLuauRegister;
 
+
 	class ToLuau_API ILuauState
 	{
 	public:

@@ -1,16 +1,20 @@
 #include "ILuauChunkLoader.h"
 
-#include "Toluau.h"
+#include "ToLuau.h"
 #include "Util/Util.h"
+#include "ToLuauLib.h"
 #include "Luau/Common.h"
 #include "Luau/Compiler.h"
 
 namespace ToLuau
 {
-	class DefaultScriptLoader final : public IScriptLoader
+
+#pragma region file loader
+
+	class FileScriptLoader final : public IScriptLoader
 	{
 	public:
-		explicit DefaultScriptLoader(ILuauChunkLoader* InOwner)
+		explicit FileScriptLoader(ILuauChunkLoader* InOwner)
 			: IScriptLoader(InOwner)
 		{
 		}
@@ -18,8 +22,10 @@ namespace ToLuau
 		bool Load(const std::string& path) override;
 	};
 
-	bool DefaultScriptLoader::Load(const std::string& Name)
+	bool FileScriptLoader::Load(const std::string& Name)
 	{
+
+
 		for (auto& LoadPath : Owner->GetLoadPaths())
 		{
 			if(Owner->RequireFromFile(LoadPath, Name))
@@ -29,6 +35,37 @@ namespace ToLuau
 		}
 		return false;
 	}
+
+#pragma endregion
+
+#pragma region module loader
+
+    class ModuleScriptLoader final : public IScriptLoader
+    {
+    public:
+        explicit ModuleScriptLoader(ILuauChunkLoader* InOwner)
+        : IScriptLoader(InOwner)
+                {
+                }
+
+        bool Load(const std::string& path) override;
+    };
+
+    bool ModuleScriptLoader::Load(const std::string &path)
+    {
+        auto L = Owner->GetOwner()->GetState();
+        lua_getref(L, TOLUAU_LOADED_REF); // preload
+        lua_pushstring(L, path.c_str()); // preload path
+        lua_rawget(L, -2); // preload value
+        if(lua_isnil(L, -1))
+        {
+            lua_pop(L, 1);
+            return false;
+        }
+        return true;
+    }
+
+#pragma endregion
 
 	class LuauChunkLoader : public ILuauChunkLoader
 	{
@@ -44,7 +81,8 @@ namespace ToLuau
 
 	LuauChunkLoader::LuauChunkLoader(ILuauState* InOwner) : ILuauChunkLoader(InOwner)
 	{
-		AddLoader(std::make_shared<DefaultScriptLoader>(this));
+        AddLoader(std::make_shared<ModuleScriptLoader>(this));
+		AddLoader(std::make_shared<FileScriptLoader>(this));
 	}
 
 	bool LuauChunkLoader::Require(const std::string& Path) const
@@ -206,4 +244,5 @@ namespace ToLuau
 		auto end = 
 			std::remove(LoadPaths.begin(), LoadPaths.end(), Path);
 	}
+
 }

@@ -23,6 +23,8 @@ namespace ToLuau
 
 		virtual ~IToLuauRegister() = default;
 
+        const ILuauState* GetOwner() const { return Owner; }
+
 		static std::shared_ptr<IToLuauRegister> Create(ILuauState* InOwner);
 
 		using LuaFunc = lua_CFunction;
