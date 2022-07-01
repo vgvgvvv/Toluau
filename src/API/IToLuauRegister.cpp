@@ -200,7 +200,7 @@ namespace ToLuau
 
     int32_t ToLuaRegister::EnumNewIndexEvent(lua_State *L)
     {
-        // TODO
+        luaL_errorL(L, "the left-hand side of an assignment must be a variable, a property or an indexer");
         return 0;
     }
 
