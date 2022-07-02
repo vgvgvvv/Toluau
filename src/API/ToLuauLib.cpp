@@ -89,6 +89,58 @@ namespace ToLuau
             {NULL, NULL}
 	};
 
+	void OpenCacheLuaVar(lua_State* L)
+	{
+		lua_pushthread(L);
+		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_MAINTHRAD);
+
+		lua_pushvalue(L, LUA_GLOBALSINDEX);
+		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUA_GLOBAL);
+
+		if(luaL_findtable(L, LUA_REGISTRYINDEX, "_LOADED.toluau", 1) == nullptr) // toluau_lib
+		{
+			lua_getfield(L, -1, "require"); // toluau_lib require
+			if(lua_isnil(L, -1))
+			{
+				LUAU_ERROR("cannot find _LOADED.toluau.require !! please check stack !!");
+			}
+			lua_rawseti(L, LUA_REGISTRYINDEX, TOLUA_REQUIRE); // toluau_lib
+
+			lua_pushstring(L, "preload"); // toluau_lib "preload"
+			lua_rawget(L, -2); // toluau_lib table
+			if(lua_isnil(L, -1))
+			{
+				lua_pop(L, 1);
+				lua_pushstring(L, "preload"); // toluau_lib "preload"
+				lua_newtable(L); // toluau_lib "preload" table
+				lua_pushvalue(L, -1); // toluau_lib "preload" table table
+				lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_PRELOAD_REF); // toluau_lib "preload" table
+				lua_rawset(L, -3); // toluau_lib
+			}
+			else // toluau_lib tpreload
+			{
+				lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_PRELOAD_REF); // toluau_lib
+			}
+
+			lua_pushstring(L, "loaded");
+			lua_rawget(L, -2);
+			if(lua_isnil(L, -1))
+			{
+				lua_pop(L, 1);
+				lua_pushstring(L, "loaded");
+				lua_newtable(L);
+				lua_pushvalue(L, -1);
+				lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_LOADED_REF);
+				lua_rawset(L, -3);
+			}
+			else
+			{
+				lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_LOADED_REF);
+			}
+		}
+
+	}
+
 	void OpenToLuauLibs(lua_State *L)
 	{
 		const luaL_Reg* Lib = ToLuauLibs;
@@ -98,6 +150,7 @@ namespace ToLuau
 			lua_pushstring(L, Lib->name);
 			lua_call(L, 1, 0);
 		}
+		OpenCacheLuaVar(L);
 	}
 }
 
