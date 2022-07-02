@@ -38,19 +38,27 @@ namespace ToLuau
         static int32_t EnumIndexEvent(lua_State* L);
         static int32_t EnumNewIndexEvent(lua_State* L);
 
+		void BeginStaticLib(const std::string &StaticLibName) override;
+		void EndStaticLib() override;
+
+        static int32_t StaticLibIndexEvent(lua_State* L);
+        static int32_t StaticLibNewIndexEvent(lua_State* L);
+
 		void RegFunction(const std::string& FuncName, LuaFunc Func) override;
 		void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) override;
     private:
 
-        void PushFullName(int32_t Pos);
+        static void PushFullName(lua_State* L, int32_t Pos);
 
-        void AddToLoaded();
+        static void AddToLoaded(lua_State* L);
+
+		static bool GetFromPreload(lua_State* L);
 
         std::map<std::string, int32_t> EnumRefDict;
         std::map<std::string, int32_t> StaticLibRefDict;
         std::map<std::string, int32_t> ClassMetaRefDict;
 
-		std::string CurrentModuleName;
+		static std::string CurrentModuleName;
 	};
 
 	std::shared_ptr<IToLuauRegister> IToLuauRegister::Create(ILuauState *InOwner)
@@ -77,7 +85,6 @@ namespace ToLuau
 				lua_pop(L, 1); // stack
 				lua_newtable(L); // stack table
 
-				// TODO set index meta func
 				lua_pushstring(L, IToLuauAPI::GetMtName(MetatableEvent::Index)); // stack table __index
                 lua_pushcfunction(L, ModuleIndexEvent, "ModuleIndexEvent"); // stack table __index function
 				lua_rawset(L, -3); // stack table
@@ -138,7 +145,25 @@ namespace ToLuau
 
         if(lua_isnil(L, -1))
         {
-            // TODO Get From Preload
+	        lua_getref(L, TOLUAU_PRELOAD_REF); // table key space preload
+	        lua_pushvalue(L, -2); // table key space preload space
+	        lua_pushstring(L, "."); // table key space preload space "."
+	        lua_pushvalue(L, 2);  // table key space preload space "." key
+	        lua_concat(L, 3); // table key space preload fullname
+	        lua_pushvalue(L, -1); // table key space preload fullname fullname
+	        lua_rawget(L, -3); // table key space preload fullname value
+
+			if(!lua_isnil(L, -1))
+			{
+				lua_pop(L, 1);
+				lua_getref(L, TOLUAU_REQUIRE_REF);// table key space preload fullname require
+				lua_pushvalue(L, -2); // table key space preload fullname reuqire fullname
+				lua_call(L, 1, 1);
+			}
+			else
+			{
+				lua_pushnil(L);
+			}
         }
 
 		return 1;
@@ -168,11 +193,11 @@ namespace ToLuau
         auto Ref = lua_ref(L, LUA_REGISTRYINDEX); // enumname table
         EnumRefDict.insert(std::make_pair(FullName, Ref));
 
-        AddToLoaded(); // enumname table
+        AddToLoaded(L); // enumname table
         lua_newtable(L); // enumname table metatable
 
         lua_pushstring(L, ".name"); // enumname table metatable .name
-        PushFullName(-4); // enumname table metatable .name fullname
+        PushFullName(L, -4); // enumname table metatable .name fullname
         lua_rawset(L, -3);
 
         lua_pushstring(L, IToLuauAPI::GetMtName(MetatableEvent::Index));
@@ -194,8 +219,48 @@ namespace ToLuau
 
     int32_t ToLuaRegister::EnumIndexEvent(lua_State *L)
     {
-        // TODO
-        return 0;
+	    lua_getmetatable(L, 1); // table key meta
+
+		if(lua_istable(L, -1))
+		{
+			lua_pushvalue(L, 2); // table key meta key
+			lua_rawget(L, -2); // table key meta value
+
+			if(!lua_isnil(L, -1))
+			{
+				lua_remove(L, -2); // table key value
+				return 1;
+			}
+
+			lua_pop(L, 1);
+
+			lua_pushstring(L, ".get"); // table key meta .get
+			lua_rawget(L, -2);       // table key meta gettable
+
+			if(lua_istable(L, -1))
+			{
+				lua_pushvalue(L, 2); // table key meta gettable key
+				lua_rawget(L, -2); // table key meta gettable getfunc
+
+				if(lua_isfunction(L, -1))
+				{
+					lua_call(L, 0, 1); // table key meta gettable value
+					lua_pushvalue(L, 2); // table key meta gettable value key
+					lua_pushvalue(L, -2); // table key meta gettable value key value
+					lua_rawset(L, 3); // table key meta gettable value
+					lua_remove(L, -2); // table key meta value
+					lua_remove(L, -2); // table key value
+					return 1;
+				}
+
+				lua_pop(L, 1);
+			}
+		}
+
+	    lua_settop(L, 2);
+	    lua_pushnil(L);
+		
+        return 1;
     }
 
     int32_t ToLuaRegister::EnumNewIndexEvent(lua_State *L)
@@ -203,6 +268,104 @@ namespace ToLuau
         luaL_errorL(L, "the left-hand side of an assignment must be a variable, a property or an indexer");
         return 0;
     }
+
+	void ToLuaRegister::BeginStaticLib(const std::string &StaticLibName)
+	{
+		auto L = Owner->GetState();
+
+		lua_pushstring(L, StaticLibName.c_str()); // name
+		lua_newtable(L);                            // name table
+
+		lua_pushvalue(L, -1);                   // name table table
+		auto Ref = lua_ref(L, LUA_REGISTRYINDEX);
+		StaticLibRefDict.insert(std::pair(StaticLibName, Ref));
+
+		AddToLoaded(L);
+		lua_pushvalue(L, -1); // name table table
+
+		lua_pushstring(L, ".name"); // name table table ".name"
+		PushFullName(L, -4); // name table table ".name" fullname
+		lua_rawset(L, -3);
+
+		lua_pushstring(L, IToLuauAPI::GetMtName(MetatableEvent::Index));
+		lua_pushcfunction(L, StaticLibIndexEvent, (StaticLibName + "_Index").c_str());
+		lua_rawset(L, -3);
+
+		lua_pushstring(L, IToLuauAPI::GetMtName(MetatableEvent::NewIndex));
+		lua_pushcfunction(L, StaticLibNewIndexEvent, (StaticLibName + "_NewIndex").c_str());
+		lua_rawset(L, -3);
+
+	}
+
+	void ToLuaRegister::EndStaticLib()
+	{
+		auto L = Owner->GetState();
+		lua_setmetatable(L, -2);
+		lua_rawset(L, -3);
+	}
+
+	int32_t ToLuaRegister::StaticLibIndexEvent(lua_State *L)
+	{
+		lua_pushvalue(L, 2); // t k k
+		lua_rawget(L, 1); // t k v
+
+		if(!lua_isnil(L, -1))
+		{
+			return 1;
+		}
+
+		lua_pop(L, 1);
+		lua_pushstring(L, ".get");
+		lua_rawget(L, 1); // t k gettable
+
+		if(lua_istable(L, -1))
+		{
+			lua_pushvalue(L, 2); // t k tget k
+			lua_rawget(L, -2); // t k tget func
+
+			if(lua_isfunction(L, -1))
+			{
+				lua_call(L, 0, 1); // t k tget value
+				lua_remove(L, -2); // t k value
+				return 1;
+			}
+		}
+
+		lua_settop(L, 2);
+
+		if(GetFromPreload(L))
+		{
+			return 1;
+		}
+
+		luaL_error(L, "field or property %s does not exist", lua_tostring(L, 2));
+		return 0;
+	}
+
+	int32_t ToLuaRegister::StaticLibNewIndexEvent(lua_State *L)
+	{
+		lua_pushstring(L, ".set"); // t k v .set
+		lua_rawget(L, 1); // t k v table
+
+		if(lua_istable(L, -1))
+		{
+			lua_pushvalue(L, 2); // t k v table k
+			lua_rawget(L, -2); // t k v table func
+
+			if(lua_isfunction(L, -1))
+			{
+				lua_pushvalue(L, 1); // t k v table func t
+				lua_pushvalue(L, 3); // t k v table func t v
+				lua_call(L, 2, 0);
+				return 0;
+			}
+		}
+
+		lua_settop(L, 3);
+
+		luaL_errorL(L, "field or property {0} does not exist", lua_tostring(L, 2));
+		return 0;
+	}
 
 	void ToLuaRegister::RegFunction(const std::string& FuncName, LuaFunc Func)
 	{
@@ -256,9 +419,8 @@ namespace ToLuau
         }
 	}
 
-    void ToLuaRegister::PushFullName(int32_t Pos)
+    void ToLuaRegister::PushFullName(lua_State* L, int32_t Pos)
     {
-        auto L = Owner->GetState();
         if(!CurrentModuleName.empty())
         {
             lua_pushstring(L, CurrentModuleName.c_str());
@@ -272,17 +434,44 @@ namespace ToLuau
         }
     }
 
-    void ToLuaRegister::AddToLoaded()
+    void ToLuaRegister::AddToLoaded(lua_State* L)
     {
-        auto L = Owner->GetState();
         lua_getref(L, TOLUAU_LOADED_REF); // name table preload
-        PushFullName(-3); // name table preload fullname
+        PushFullName(L, -3); // name table preload fullname
         lua_pushvalue(L, -3); // name table preload fullname table
         lua_rawset(L, -3); // name table preload
         lua_pop(L, 1);
     }
 
+	bool ToLuaRegister::GetFromPreload(lua_State* L)
+	{
+		lua_settop(L, 2); // table key
+		lua_getmetatable(L, 1); // table key meta
+		lua_pushstring(L, ".name"); // table key meta ".name"
+		lua_rawget(L, -2); // table key meta space
 
+		if(!lua_isnil(L, -1))
+		{
+			lua_getref(L, TOLUAU_PRELOAD_REF); // table key meta space preload
+			lua_pushvalue(L, -2); // table key meta space preload space
+			lua_pushstring(L, "."); // table key meta space preload space "."
+			lua_pushvalue(L, 2); // table key meta space preload space "." key
+			lua_concat(L, 3); // table key meta space preload fullname
+			lua_pushvalue(L, -1); // table key meta space preload fullname fullname
+			lua_rawget(L, -3); // table key meta space preload fullname value
+
+			if(!lua_isnil(L, -1))
+			{
+				lua_pop(L, 1);
+				lua_getref(L, TOLUAU_REQUIRE_REF);       // table key meta space preload fullname require
+				lua_pushvalue(L, -2);                // table key meta space preload fullname require fullname
+				lua_call(L, 1, 1);
+				return true;
+			}
+		}
+
+		return false;
+	}
 
 
 }

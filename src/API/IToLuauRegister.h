@@ -38,6 +38,9 @@ namespace ToLuau
 		virtual void BeginEnum(const std::string& EnumName) = 0;
 		virtual void EndEnum() = 0;
 
+		virtual void BeginStaticLib(const std::string& StaticLibName) = 0;
+		virtual void EndStaticLib() = 0;
+
 		virtual void RegFunction(const std::string& FuncName, LuaFunc Func) = 0;
 
 		virtual void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) = 0;

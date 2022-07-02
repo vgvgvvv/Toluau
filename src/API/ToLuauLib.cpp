@@ -92,10 +92,10 @@ namespace ToLuau
 	void OpenCacheLuaVar(lua_State* L)
 	{
 		lua_pushthread(L);
-		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_MAINTHRAD);
+		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_MAINTHRAD_REF);
 
 		lua_pushvalue(L, LUA_GLOBALSINDEX);
-		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUA_GLOBAL);
+		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_GLOBAL_REF);
 
 		if(luaL_findtable(L, LUA_REGISTRYINDEX, "_LOADED.toluau", 1) == nullptr) // toluau_lib
 		{
@@ -104,7 +104,7 @@ namespace ToLuau
 			{
 				LUAU_ERROR("cannot find _LOADED.toluau.require !! please check stack !!");
 			}
-			lua_rawseti(L, LUA_REGISTRYINDEX, TOLUA_REQUIRE); // toluau_lib
+			lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_REQUIRE_REF); // toluau_lib
 
 			lua_pushstring(L, "preload"); // toluau_lib "preload"
 			lua_rawget(L, -2); // toluau_lib table
