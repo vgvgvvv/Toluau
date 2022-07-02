@@ -12,7 +12,7 @@ namespace ToLuau
 {
 	extern int32_t TOLUAU_PRELOAD_REF;
 	extern int32_t TOLUAU_LOADED_REF;
-	extern int32_t TOLUAU_MAINTHRAD_REF;
+	extern int32_t TOLUAU_MAIN_THREAD_REF;
 	extern int32_t TOLUAU_GLOBAL_REF;
 	extern int32_t TOLUAU_REQUIRE_REF;
 

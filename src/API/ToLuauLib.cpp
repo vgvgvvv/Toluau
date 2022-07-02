@@ -99,7 +99,7 @@ namespace ToLuau
 	void OpenCacheLuaVar(lua_State* L)
 	{
 		lua_pushthread(L);
-		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_MAINTHRAD_REF);
+		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_MAIN_THREAD_REF);
 
 		lua_pushvalue(L, LUA_GLOBALSINDEX);
 		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_GLOBAL_REF);
