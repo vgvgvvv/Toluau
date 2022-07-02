@@ -4,6 +4,9 @@
 
 #include <string>
 #include <functional>
+
+#include "lua.h"
+
 #include "ToLuau_API.h"
 
 #pragma once
@@ -29,9 +32,12 @@ namespace ToLuau
 
 		using LuaFunc = lua_CFunction;
 
+		virtual void RegisterAll() = 0;
+
 		virtual void BeginModule(const std::string& ModuleName) = 0;
 		virtual void EndModule() = 0;
 
+		void BeginClass(const std::string& ClassName) { BeginClass(ClassName, ""); };
 		virtual void BeginClass(const std::string& ClassName, const std::string& SuperClassName) = 0;
 		virtual void EndClass() = 0;
 
@@ -47,6 +53,14 @@ namespace ToLuau
 
 	protected:
 		ILuauState* Owner = nullptr;
+	};
+
+	class ToLuau_API ILuauStaticRegister
+	{
+	public:
+		ILuauStaticRegister();
+		virtual ~ILuauStaticRegister();
+		virtual void LuaRegister(IToLuauRegister* Register) = 0;
 	};
 
 }

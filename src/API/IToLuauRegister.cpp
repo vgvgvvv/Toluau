@@ -19,10 +19,57 @@ namespace ToLuau
 
 	static const char* GlobalLuaRegisterName = "_GLOBAL_REGISTER_";
 
+	class GlobalRegisterManager
+	{
+		friend class ILuauStaticRegister;
+	public:
+		static GlobalRegisterManager& Get()
+		{
+			static GlobalRegisterManager StaticInstance;
+			return StaticInstance;
+		}
+
+		void DoRegister(IToLuauRegister* Owner)
+		{
+			if(!Owner)
+			{
+				return;
+			}
+			for (const auto &Register: Registers)
+			{
+				if(!Register)
+				{
+					continue;
+				}
+				Owner->BeginModule("");
+				Register->LuaRegister(Owner);
+				Owner->EndModule();
+			}
+		}
+
+	private:
+		std::vector<ILuauStaticRegister*> Registers;
+	};
+
+	ILuauStaticRegister::ILuauStaticRegister()
+	{
+		GlobalRegisterManager::Get().Registers.push_back(this);
+	}
+
+	ILuauStaticRegister::~ILuauStaticRegister()
+	{
+		auto& Registers = GlobalRegisterManager::Get().Registers;
+		auto removeIt = std::remove(Registers.begin(), Registers.end(), this);
+	}
+
+
 	class ToLuaRegister : public IToLuauRegister
 	{
 	public:
 		explicit ToLuaRegister(ILuauState* InOwner) : IToLuauRegister(InOwner) {}
+
+		void RegisterAll() override;
+
 		void BeginModule(const std::string& ModuleName) override;
 		void EndModule() override;
 
@@ -67,7 +114,16 @@ namespace ToLuau
 
 	std::shared_ptr<IToLuauRegister> IToLuauRegister::Create(ILuauState *InOwner)
 	{
-		return std::make_shared<ToLuaRegister>(InOwner);
+		auto Result = std::make_shared<ToLuaRegister>(InOwner);
+		// register all static registered types
+		Result->RegisterAll();
+		return Result;
+	}
+
+
+	void ToLuaRegister::RegisterAll()
+	{
+		GlobalRegisterManager::Get().DoRegister(this);
 	}
 
 	void ToLuaRegister::BeginModule(const std::string& ModuleName)
@@ -773,6 +829,7 @@ namespace ToLuau
 
 		return false;
 	}
+
 
 
 }

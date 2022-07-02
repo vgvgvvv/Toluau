@@ -4,6 +4,19 @@
 
 #include <iostream>
 #include "TestRegister.h"
+#include "API/IToLuauRegister.h"
+
+
+class TestLuaRegister : public ToLuau::ILuauStaticRegister
+{
+public:
+	void LuaRegister(ToLuau::IToLuauRegister *Register) override
+	{
+//		Register->BeginClass("FooClass");
+//		Register->RegFunction("PrintIntMem", &FooClass::PrintIntMem);
+//		Register->EndClass();
+	}
+};
 
 void FooClass::PrintIntMem()
 {
