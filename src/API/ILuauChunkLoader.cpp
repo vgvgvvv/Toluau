@@ -19,7 +19,7 @@ namespace ToLuau
 		{
 		}
 
-		bool Load(const std::string& path) override;
+		bool Load(const std::string& Name) override;
 	};
 
 	bool FileScriptLoader::Load(const std::string& Name)
@@ -38,12 +38,13 @@ namespace ToLuau
 
 #pragma endregion
 
-#pragma region module loader
 
-    class ModuleScriptLoader final : public IScriptLoader
+#pragma region package loader
+
+    class PackageScriptLoader final : public IScriptLoader
     {
     public:
-        explicit ModuleScriptLoader(ILuauChunkLoader* InOwner)
+        explicit PackageScriptLoader(ILuauChunkLoader* InOwner)
         : IScriptLoader(InOwner)
                 {
                 }
@@ -51,7 +52,7 @@ namespace ToLuau
         bool Load(const std::string& path) override;
     };
 
-    bool ModuleScriptLoader::Load(const std::string &path)
+    bool PackageScriptLoader::Load(const std::string &path)
     {
         auto L = Owner->GetOwner()->GetState();
         lua_getref(L, TOLUAU_LOADED_REF); // preload
@@ -81,7 +82,7 @@ namespace ToLuau
 
 	LuauChunkLoader::LuauChunkLoader(ILuauState* InOwner) : ILuauChunkLoader(InOwner)
 	{
-        AddLoader(std::make_shared<ModuleScriptLoader>(this));
+        AddLoader(std::make_shared<PackageScriptLoader>(this));
 		AddLoader(std::make_shared<FileScriptLoader>(this));
 	}
 
