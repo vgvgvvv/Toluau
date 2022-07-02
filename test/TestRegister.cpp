@@ -10,7 +10,7 @@ void FooClass::PrintIntMem()
 	std::cout << IntMem << std::endl;
 }
 
-int32_t FooClass::SayHello(const std::string &Word)
+void FooClass::SayHello(const std::string &Word)
 {
 	std::cout << Word << " : " << StrMem << std::endl;
 }

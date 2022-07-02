@@ -18,7 +18,7 @@ class FooClass
 public:
 
 	void PrintIntMem();
-	int32_t SayHello(const std::string& Word);
+	void SayHello(const std::string& Word);
 
 	int32_t IntMem;
 	std::string StrMem;
