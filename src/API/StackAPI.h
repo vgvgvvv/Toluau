@@ -286,10 +286,30 @@ namespace ToLuau
 				}
 			};
 
+			template<typename T>
+			struct StackOperatorWrapper<std::vector<T>>
+			{
+				static int32_t Push(lua_State* L, const std::vector<T>& Value)
+				{
+					lua_newtable(L);
+					for (uint32_t i = 0; i < Value.size(); ++i)
+					{
+						lua_pushinteger(L, static_cast<int32_t>(i));
+						Push<T>(L, Value[i]);
+						lua_settable(L, -3);
+					}
+				}
+
+//				static std::vector<T> Check(lua_State* L, int32_t Pos)
+//				{
+//					return
+//				}
+			};
+
 		}
 
 		template<typename T>
-		int32_t Push(lua_State* L, T Value)
+		int32_t Push(lua_State* L, const T& Value)
 		{
 			return __DETAIL__::StackOperatorWrapper<T>::Push(L, Value);
 		}

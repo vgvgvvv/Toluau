@@ -13,9 +13,22 @@ class TestLuaRegister : public ToLuau::ILuauStaticRegister
 public:
 	void LuaRegister(ToLuau::IToLuauRegister *Register) override
 	{
-//		Register->BeginClass("FooClass");
-//		Register->RegFunction("PrintIntMem", &FooClass::PrintIntMem);
-//		Register->EndClass();
+		Register->BeginClass("FooClass");
+		Register->RegFunction("PrintIntMem",
+							  &ToLuau::LuaCppBinding<decltype(&FooClass::PrintIntMem), &FooClass::PrintIntMem>::LuaCFunction);
+		Register->RegFunction("SayHello",
+		                      &ToLuau::LuaCppBinding<decltype(&FooClass::SayHello), &FooClass::SayHello>::LuaCFunction);
+		Register->EndClass();
+
+		Register->BeginEnum("FooEnum");
+		Register->RegVar("Bar", [](lua_State* L){ ToLuau::StackAPI::Push(L, FooEnum::Bar); return 1;}, nullptr);
+		Register->RegVar("Foo", [](lua_State* L){ ToLuau::StackAPI::Push(L, FooEnum::Foo); return 1;}, nullptr);
+		Register->EndEnum();
+
+		Register->BeginStaticLib("FooStaticLib");
+		Register->RegFunction("Add", &ToLuau::LuaCppBinding<decltype(&FooStaticLib::Add), &FooStaticLib::Add>::LuaCFunction);
+		Register->RegFunction("FooFunc", &ToLuau::LuaCppBinding<decltype(&FooStaticLib::FooFunc), &FooStaticLib::FooFunc>::LuaCFunction);
+		Register->EndStaticLib();
 	}
 };
 
@@ -24,31 +37,7 @@ void FooClass::PrintIntMem()
 	std::cout << IntMem << std::endl;
 }
 
-
-
-template<typename TOwner>
-using MemberFunc = void(TOwner::*)();
-
-template<typename TOwner, typename T, T Func>
-lua_CFunction Convert()
-{
-	static auto Instance =
-			[](lua_State* L) -> int32_t
-			{
-				auto Owner = ToLuau::StackAPI::Check<TOwner*>(L, -1);
-				(Owner->*Func)();
-				return 0;
-			};
-	return Instance;
-}
-
-void Test()
-{
-	auto Result = Convert<FooClass, decltype(&FooClass::PrintIntMem), &FooClass::PrintIntMem>();
-}
-
-
-void FooClass::SayHello(const std::string &Word)
+void FooClass::SayHello(const std::string& Word)
 {
 	std::cout << Word << " : " << StrMem << std::endl;
 }

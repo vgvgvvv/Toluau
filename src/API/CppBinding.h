@@ -12,7 +12,7 @@ namespace ToLuau
 	struct ArgOperator
 	{
 		template<typename T>
-		static T* ReadArg(lua_State* L, int Pos)
+		static T ReadArg(lua_State* L, int Pos)
 		{
 			return StackAPI::Check<T>(L, Pos);
 		}
@@ -85,7 +85,7 @@ namespace ToLuau
 	};
 
 	// invoke with args without return value
-	template<typename... Args, void(*TargetFunc)(lua_State* L, void*, Args...), TargetFunc, int Offset>
+	template<typename... Args, void(*TargetFunc)(lua_State* L, void*, Args...), int Offset>
 	struct FunctionBind<void(*)(lua_State* L, void*, Args...), TargetFunc, Offset>
 	{
 		template<class X>
@@ -149,14 +149,14 @@ namespace ToLuau
 
 		static int32_t LuaCFunction(lua_State* L)
 		{
-			void* P = StackAPI::Check<TOwner>(L, 1);
+			void* P = StackAPI::Check<TOwner*>(L, 1);
 			using F = FunctionBind<decltype(&Invoke), Invoke, 2>;
 			return F::Invoke(L, P);
 		}
 	};
 
 
-	template<typename TOwner, typename  TRet, typename... TArgs, TRet (TOwner::*TargetFunc)(TArgs)>
+	template<typename TOwner, typename  TRet, typename... TArgs, TRet (TOwner::*TargetFunc)(TArgs...)>
 	struct LuaCppBinding<TRet(TOwner::*)(TArgs...), TargetFunc>
 	{
 		static constexpr bool IsStatic = !std::is_member_function_pointer<decltype(TargetFunc)>::value;
@@ -169,13 +169,13 @@ namespace ToLuau
 
 		static int32_t LuaCFunction(lua_State* L)
 		{
-			void* P = StackAPI::Check<TOwner>(L, 1);
+			void* P = StackAPI::Check<TOwner*>(L, 1);
 			using F = FunctionBind<decltype(&Invoke), Invoke, 2>;
 			return F::Invoke(L, P);
 		}
 	};
 
-	template<typename TOwner, typename... TArgs, void (TOwner::*TargetFunc)(TArgs) const>
+	template<typename TOwner, typename... TArgs, void (TOwner::*TargetFunc)(TArgs...) const>
 	struct LuaCppBinding<void(TOwner::*)(TArgs...), TargetFunc>
 	{
 		static constexpr bool IsStatic = !std::is_member_function_pointer<decltype(TargetFunc)>::value;
@@ -188,13 +188,13 @@ namespace ToLuau
 
 		static int32_t LuaCFunction(lua_State* L)
 		{
-			void* P = StackAPI::Check<TOwner>(L, 1);
+			void* P = StackAPI::Check<TOwner*>(L, 1);
 			using F = FunctionBind<decltype(&Invoke), Invoke, 2>;
 			return F::Invoke(L, P);
 		}
 	};
 
-	template<typename TOwner, typename... TArgs, void (TOwner::*TargetFunc)(TArgs)>
+	template<typename TOwner, typename... TArgs, void (TOwner::*TargetFunc)(TArgs...)>
 	struct LuaCppBinding<void(TOwner::*)(TArgs...), TargetFunc>
 	{
 		static constexpr bool IsStatic = !std::is_member_function_pointer<decltype(TargetFunc)>::value;
@@ -207,7 +207,7 @@ namespace ToLuau
 
 		static int32_t LuaCFunction(lua_State* L)
 		{
-			void* P = StackAPI::Check<TOwner>(L, 1);
+			void* P = StackAPI::Check<TOwner*>(L, 1);
 			using F = FunctionBind<decltype(&Invoke), Invoke, 2>;
 			return F::Invoke(L, P);
 		}
