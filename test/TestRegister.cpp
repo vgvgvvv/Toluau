@@ -8,29 +8,36 @@
 #include "API/StackAPI.h"
 
 
-class TestLuaRegister : public ToLuau::ILuauStaticRegister
+namespace
 {
-public:
-	void LuaRegister(ToLuau::IToLuauRegister *Register) override
+	using namespace ToLuau;
+	class TestLuaRegister : public ILuauStaticRegister
 	{
-		Register->BeginClass("FooClass");
-		Register->RegFunction("PrintIntMem",
-							  &ToLuau::LuaCppBinding<decltype(&FooClass::PrintIntMem), &FooClass::PrintIntMem>::LuaCFunction);
-		Register->RegFunction("SayHello",
-		                      &ToLuau::LuaCppBinding<decltype(&FooClass::SayHello), &FooClass::SayHello>::LuaCFunction);
-		Register->EndClass();
+	public:
+		void LuaRegister(IToLuauRegister *Register) override
+		{
 
-		Register->BeginEnum("FooEnum");
-		Register->RegVar("Bar", [](lua_State* L){ ToLuau::StackAPI::Push(L, FooEnum::Bar); return 1;}, nullptr);
-		Register->RegVar("Foo", [](lua_State* L){ ToLuau::StackAPI::Push(L, FooEnum::Foo); return 1;}, nullptr);
-		Register->EndEnum();
+			Register->BeginClass("FooClass");
+			Register->RegFunction("PrintIntMem",
+			                      &LuaCppBinding<decltype(&FooClass::PrintIntMem), &FooClass::PrintIntMem>::LuaCFunction);
+			Register->RegFunction("SayHello",
+			                      &LuaCppBinding<decltype(&FooClass::SayHello), &FooClass::SayHello>::LuaCFunction);
+	//		Register->RegVar("IntMem", &ToLuau::LuaCppBinding<decltype(&FooClass::IntMem), FooClass::IntMem>::LuaCFunction);
+			Register->EndClass();
 
-		Register->BeginStaticLib("FooStaticLib");
-		Register->RegFunction("Add", &ToLuau::LuaCppBinding<decltype(&FooStaticLib::Add), &FooStaticLib::Add>::LuaCFunction);
-		Register->RegFunction("FooFunc", &ToLuau::LuaCppBinding<decltype(&FooStaticLib::FooFunc), &FooStaticLib::FooFunc>::LuaCFunction);
-		Register->EndStaticLib();
-	}
-};
+			Register->BeginEnum("FooEnum");
+			Register->RegVar("Bar", nullptr, [](lua_State* L){ StackAPI::Push(L, FooEnum::Bar); return 1;});
+			Register->RegVar("Foo", nullptr, [](lua_State* L){ StackAPI::Push(L, FooEnum::Foo); return 1;});
+			Register->EndEnum();
+
+			Register->BeginStaticLib("FooStaticLib");
+			Register->RegFunction("Add", &LuaCppBinding<decltype(&FooStaticLib::Add), &FooStaticLib::Add>::LuaCFunction);
+			Register->RegFunction("FooFunc", &LuaCppBinding<decltype(&FooStaticLib::FooFunc), &FooStaticLib::FooFunc>::LuaCFunction);
+			Register->EndStaticLib();
+		}
+	};
+}
+
 
 void FooClass::PrintIntMem()
 {
