@@ -7,6 +7,7 @@
 
 #include "lua.h"
 
+#include "CppBinding.h"
 #include "ToLuau_API.h"
 
 #pragma once
