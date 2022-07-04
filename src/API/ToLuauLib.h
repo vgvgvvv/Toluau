@@ -15,6 +15,7 @@ namespace ToLuau
 	extern int32_t TOLUAU_MAIN_THREAD_REF;
 	extern int32_t TOLUAU_GLOBAL_REF;
 	extern int32_t TOLUAU_REQUIRE_REF;
+    extern int32_t TOLUAU_REGISTER_REF;
 
 	void OpenToLuauLibs(lua_State* L);
 }

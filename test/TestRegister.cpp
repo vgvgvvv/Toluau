@@ -6,6 +6,7 @@
 #include "TestRegister.h"
 #include "API/IToLuauRegister.h"
 #include "API/StackAPI.h"
+#include "ToLuau.h"
 
 
 namespace
@@ -16,13 +17,26 @@ namespace
 	public:
 		void LuaRegister(IToLuauRegister *Register) override
 		{
+            std::cout << "do test register" << std::endl;
 
 			Register->BeginClass("FooClass");
 			Register->RegFunction("PrintIntMem",
 			                      &LuaCppBinding<decltype(&FooClass::PrintIntMem), &FooClass::PrintIntMem>::LuaCFunction);
 			Register->RegFunction("SayHello",
 			                      &LuaCppBinding<decltype(&FooClass::SayHello), &FooClass::SayHello>::LuaCFunction);
-	//		Register->RegVar("IntMem", &ToLuau::LuaCppBinding<decltype(&FooClass::IntMem), FooClass::IntMem>::LuaCFunction);
+
+            Lua::DumpStack(Register->GetOwner()->GetState(), "before int mem");
+
+	        Register->RegVar("IntMem",
+                             &ToLuau::LuaCppBinding<decltype(&FooClass::SetIntMem), &FooClass::SetIntMem>::LuaCFunction,
+                             &ToLuau::LuaCppBinding<decltype(&FooClass::GetIntMem), &FooClass::GetIntMem>::LuaCFunction);
+
+            Lua::DumpStack(Register->GetOwner()->GetState(), "after int mem");
+
+            Register->RegVar("StrMem",
+                             &ToLuau::LuaCppBinding<decltype(&FooClass::SetStrMem), &FooClass::SetStrMem>::LuaCFunction,
+                             &ToLuau::LuaCppBinding<decltype(&FooClass::GetStrMem), &FooClass::GetStrMem>::LuaCFunction);
+
 			Register->EndClass();
 
 			Register->BeginEnum("FooEnum");
@@ -36,6 +50,8 @@ namespace
 			Register->EndStaticLib();
 		}
 	};
+
+    TestLuaRegister TestRegister;
 }
 
 

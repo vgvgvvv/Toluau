@@ -12,12 +12,14 @@ namespace ToLuau
 {
     namespace StackAPI
     {
-        int32_t PushRefObj(lua_State *L, void* Instance, const std::string &ClassName)
+        int32_t PushRefObj(lua_State *L, BaseUserData* Instance, const std::string &ClassName) // ud
         {
             auto Owner = ILuauState::GetByRawState(L);
             auto ClassRef = Owner->GetRegister().GetClassMetaRef(ClassName);
             if(ClassRef > 0)
             {
+                lua_getref(L, ClassRef); // ud meta
+                lua_setmetatable(L, -2); // ud
             }
             else
             {
@@ -46,7 +48,7 @@ namespace ToLuau
                     return nullptr;
                 }
 
-                return lua_touserdata(L, Pos);
+                return reinterpret_cast<BaseUserData*>(lua_touserdata(L, Pos))->RawPtr;
             }
             else
             {
@@ -55,7 +57,7 @@ namespace ToLuau
                     luaL_typeerror(L, Pos, "lightuserdata");
                     return nullptr;
                 }
-                return lua_tolightuserdata(L, Pos);
+                return reinterpret_cast<BaseUserData*>(lua_tolightuserdata(L, Pos))->RawPtr;
             }
             return nullptr;
         }

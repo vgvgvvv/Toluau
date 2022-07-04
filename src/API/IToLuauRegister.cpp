@@ -248,8 +248,7 @@ namespace ToLuau
 		if(ClassMetaRef_It == ClassMetaRefDict.end())
 		{
 			lua_newtable(L); // t k classtable mt
-			lua_pushvalue(L, -1); // t k class table mt mt
-			ClassMetaRef = lua_ref(L, LUA_REGISTRYINDEX); // t k classtable mt
+			ClassMetaRef = lua_ref(L, -1); // t k classtable mt
 			ClassMetaRefDict.insert(std::make_pair(FullName, ClassMetaRef));
 		}
 		else
@@ -266,8 +265,7 @@ namespace ToLuau
 			if(BaseClassRef_It == ClassMetaRefDict.end())
 			{
 				lua_newtable(L);     // t k classtable mt bmt
-				lua_pushvalue(L, -1);   //t k classtable mt bmt bmt
-				auto BaseClassRef = lua_ref(L, LUA_REGISTRYINDEX); // t k class mt bmt
+				auto BaseClassRef = lua_ref(L, -1); // t k class mt bmt
 				ClassMetaRefDict.insert(std::make_pair(SuperFullClassName, BaseClassRef));
 				lua_setmetatable(L, -2); // t k class table mt
 			}
@@ -280,7 +278,7 @@ namespace ToLuau
 
 		//table name classtable mt
 
-		lua_pushstring(L, ".name"); // table name classtable mt .name
+        lua_pushstring(L, ".name"); // table name classtable mt .name
 		PushFullName(this, -4);
 		lua_rawset(L, -3);
 
@@ -548,8 +546,7 @@ namespace ToLuau
         lua_pushstring(L, EnumName.c_str()); // enumname
         lua_newtable(L); // enumname table
 
-        lua_pushvalue(L, -1); // enumname table table
-        auto Ref = lua_ref(L, LUA_REGISTRYINDEX); // enumname table
+        auto Ref = lua_ref(L, -1); // enumname table
         EnumRefDict.insert(std::make_pair(FullName, Ref));
 
         AddToLoaded(this); // enumname table
@@ -635,8 +632,7 @@ namespace ToLuau
 		lua_pushstring(L, StaticLibName.c_str()); // name
 		lua_newtable(L);                            // name table
 
-		lua_pushvalue(L, -1);                   // name table table
-		auto Ref = lua_ref(L, LUA_REGISTRYINDEX);
+		auto Ref = lua_ref(L, -1);
 		StaticLibRefDict.insert(std::pair(StaticLibName, Ref));
 
 		AddToLoaded(this);
@@ -744,23 +740,23 @@ namespace ToLuau
 
             if(!lua_istable(L, -1))
             {
-                lua_pop(L, 1);
-                lua_newtable(L);
-                lua_pushstring(L, ".get");
-                lua_pushvalue(L, -2);
-                lua_rawset(L, -4);
+                lua_pop(L, 1);  // table
+                lua_newtable(L); // table gettable
+                lua_pushstring(L, ".get"); // table gettable ".get"
+                lua_pushvalue(L, -2); // table gettable ".get" gettable
+                lua_rawset(L, -4); // table gettable
             }
 
-            lua_pushstring(L, VarName.c_str());
-            lua_pushcfunction(L, Getter, (VarName + "Getter").c_str());
-            lua_rawset(L, -3);
-            lua_pop(L, 1);
+            lua_pushstring(L, VarName.c_str()); // table gettable "varname"
+            lua_pushcfunction(L, Getter, (VarName + "Getter").c_str()); // table gettable "varname" cunction
+            lua_rawset(L, -3);// table gettable
+            lua_pop(L, 1); //table
         }
 
         if(Setter != nullptr)
         {
-            lua_pushstring(L, ".set");
-            lua_rawset(L, -2);
+            lua_pushstring(L, ".set"); // table ".set"
+            lua_rawget(L, -2);
 
             if(!lua_istable(L, -1))
             {

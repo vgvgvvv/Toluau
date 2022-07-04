@@ -21,8 +21,8 @@ namespace ToLuau
 	namespace StackAPI
 	{
 
-        int32_t PushRefObj(lua_State* L, void* Instance, const std::string& ClassName);
-        void* CheckRefObj(lua_State* L, int32_t Pos, const std::string& ClassName);
+        ToLuau_API int32_t PushRefObj(lua_State* L, BaseUserData* Instance, const std::string& ClassName);
+        ToLuau_API void* CheckRefObj(lua_State* L, int32_t Pos, const std::string& ClassName);
 
 		#pragma region push & check
 
@@ -372,10 +372,15 @@ namespace ToLuau
             template<typename T>
             struct StackOperatorWrapper<T*>
             {
-                static int32_t Push(lua_State* L, const T* Value)
+                static int32_t Push(lua_State* L, T* Value)
                 {
                     auto ClassName = GetLuaClassName<T>();
-                    return PushRefObj(L, Value, ClassName);
+                    UserData<T>* NewUserData = reinterpret_cast<UserData<T>*>(lua_newuserdatadtor(L, sizeof(UserData<T>), [](void* UD){
+                        auto RealUD = reinterpret_cast<UserData<T>*>(UD);
+                        delete RealUD;
+                    }));
+                    NewUserData->RawPtr = Value;
+                    return PushRefObj(L, NewUserData, ClassName);
                 }
 
                 static T* Check(lua_State* L, int32_t Pos)
@@ -426,10 +431,6 @@ namespace ToLuau
 			Push(L, Value);
 			lua_settable(L, -3);
 		}
-
-        int32_t PushRefObj(lua_State* L, void* Instance, const std::string& ClassName);
-
-        void* CheckRefObj(lua_State* L, int32_t Pos, const std::string& ClassName);
 
 		#pragma endregion
 

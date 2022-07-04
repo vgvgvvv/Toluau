@@ -8,4 +8,11 @@ function Module.entry()
 	toluau.log("hello world")
 end
 
+function Module.testClass(fooClass)
+
+	fooClass.IntMem = 100
+	fooClass:PrintIntMem()
+	fooClass:SayHello("xixi")
+end
+
 return Module;

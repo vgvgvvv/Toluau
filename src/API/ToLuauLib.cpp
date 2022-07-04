@@ -15,6 +15,7 @@ namespace ToLuau
 	int32_t TOLUAU_MAIN_THREAD_REF = 23;
 	int32_t TOLUAU_GLOBAL_REF = 24;
 	int32_t TOLUAU_REQUIRE_REF = 25;
+    int32_t TOLUAU_REGISTER_REF = 26;
 
 	namespace ToluauDefaultLibs
 	{
@@ -102,6 +103,9 @@ namespace ToLuau
 
 		lua_pushvalue(L, LUA_GLOBALSINDEX);
 		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_GLOBAL_REF);
+
+        lua_newtable(L);
+        lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_REGISTER_REF);
 
 		if(luaL_findtable(L, LUA_REGISTRYINDEX, "_LOADED.toluau", 1) == nullptr) // toluau_lib
 		{
