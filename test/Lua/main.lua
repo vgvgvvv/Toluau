@@ -2,10 +2,13 @@
 
 local Module = {}
 
-toluau.log("test", "hxiasd", 123123)
+local log = toluau.log
+local require = toluau.require;
+
+log("test", "hxiasd", 123123)
 
 function Module.entry()
-	toluau.log("hello world")
+	log("hello world")
 end
 
 function Module.testClass(fooClass)
@@ -14,6 +17,16 @@ function Module.testClass(fooClass)
 	fooClass.StrMem = "world";
 	fooClass:PrintIntMem()
 	fooClass:SayHello("xixi")
+
+	local Lib = require("FooStaticLib")
+
+	local result = Lib.Add(1, 2);
+	log(result)
+
+	local Enum = require("FooEnum")
+	log("FooEnum.Bar", Enum.Bar)
+	log("FooEnum.Foo", Enum.Foo)
+
 end
 
 return Module;

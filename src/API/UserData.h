@@ -23,7 +23,6 @@ namespace ToLuau
 
 		void Release()
 		{
-			std::cout << "delete UserData" << std::endl;
 			auto RealValue = GetValue();
 			if(RealValue != nullptr)
 			{

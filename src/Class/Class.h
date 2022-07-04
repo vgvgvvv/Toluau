@@ -43,10 +43,6 @@ namespace ToLuau
 		/* --------------------------------------------------------------------- */
 		virtual bool IsClass() const noexcept { return false; }
 
-		virtual bool IsEnum() const noexcept { return false; }
-
-		virtual bool IsPointer() const noexcept { return false; }
-
 		/* --------------------------------------------------------------------- */
 		/* Access                                                                */
 		/* --------------------------------------------------------------------- */
@@ -104,12 +100,6 @@ namespace ToLuau
 		{
 			Defined = true;
 		}
-
-
-		/* --------------------------------------------------------------------- */
-		/* Identifier                                                            */
-		/* --------------------------------------------------------------------- */
-		virtual bool IsClass() const noexcept override { return true; };
 
 
 		/* --------------------------------------------------------------------- */

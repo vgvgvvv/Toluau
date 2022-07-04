@@ -29,31 +29,16 @@ namespace ToLuau
 		namespace __DETAIL__
 		{
 			template<typename T, typename = void>
-			struct StackOperatorWrapper
-			{
-				static int32_t Push(lua_State* L, T Value)
-				{
-					Lua::Error("not support current type !!");
-					assert(false);
-					return 0;
-				}
-
-				static T Check(lua_State* L, int32_t pos)
-				{
-					Lua::Error("not support current type !!");
-					assert(false);
-					return T{};
-				}
-			};
+			struct StackOperatorWrapper;
 
 			const int kInt64Tag = 1;
 			static int gInt64MT = -1;
 
-			template<typename T>
-			struct StackOperatorWrapper<T, typename std::is_same<int64_t, T>>
+			template<>
+			struct StackOperatorWrapper<int64_t, void>
 			{
 
-				static int32_t Push(lua_State* L, T Value)
+				static int32_t Push(lua_State* L, int64_t Value)
 				{
 					void* p = lua_newuserdatatagged(L, sizeof(int64_t), kInt64Tag);
 
@@ -64,7 +49,7 @@ namespace ToLuau
 					return 1;
 				}
 
-				static T Check(lua_State* L, int32_t pos)
+				static int64_t Check(lua_State* L, int32_t pos)
 				{
 					if (void* p = lua_touserdatatagged(L, pos, kInt64Tag))
 						return *static_cast<int64_t*>(p);
@@ -275,7 +260,7 @@ namespace ToLuau
 			};
 
 			template<typename T>
-			struct StackOperatorWrapper<T, std::is_enum<T>>
+			struct StackOperatorWrapper<T, typename std::enable_if<std::is_enum_v<T>>::type>
 			{
 				static int32_t Push(lua_State* L, T Value)
 				{

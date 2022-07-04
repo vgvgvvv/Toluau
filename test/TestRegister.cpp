@@ -8,7 +8,6 @@
 #include "API/StackAPI.h"
 #include "ToLuau.h"
 
-
 namespace
 {
 	using namespace ToLuau;
@@ -25,13 +24,9 @@ namespace
 			Register->RegFunction("SayHello",
 			                      &LuaCppBinding<decltype(&FooClass::SayHello), &FooClass::SayHello>::LuaCFunction);
 
-            Lua::DumpStack(Register->GetOwner()->GetState(), "before int mem");
-
 	        Register->RegVar("IntMem",
                              &ToLuau::LuaCppBinding<decltype(&FooClass::SetIntMem), &FooClass::SetIntMem>::LuaCFunction,
                              &ToLuau::LuaCppBinding<decltype(&FooClass::GetIntMem), &FooClass::GetIntMem>::LuaCFunction);
-
-            Lua::DumpStack(Register->GetOwner()->GetState(), "after int mem");
 
             Register->RegVar("StrMem",
                              &ToLuau::LuaCppBinding<decltype(&FooClass::SetStrMem), &FooClass::SetStrMem>::LuaCFunction,
@@ -39,9 +34,10 @@ namespace
 
 			Register->EndClass();
 
+
 			Register->BeginEnum("FooEnum");
-			Register->RegVar("Bar", nullptr, [](lua_State* L){ StackAPI::Push(L, FooEnum::Bar); return 1;});
-			Register->RegVar("Foo", nullptr, [](lua_State* L){ StackAPI::Push(L, FooEnum::Foo); return 1;});
+			Register->RegVar("Bar", nullptr, [](lua_State* L){ return StackAPI::Push(L, FooEnum::Bar); });
+			Register->RegVar("Foo", nullptr, [](lua_State* L){ return StackAPI::Push(L, FooEnum::Foo); });
 			Register->EndEnum();
 
 			Register->BeginStaticLib("FooStaticLib");
