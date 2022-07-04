@@ -1,11 +1,19 @@
-
-
-local Module = {}
+--!strict
 
 local log = toluau.log
 local require = toluau.require;
 
-log("test", "hxiasd", 123123)
+--type Point = {x : number, y : number}
+--local p : Point = {x = 100, y = 200}
+--p.z = 300
+--
+--print(p.x, p.y);
+--print(p.z)
+
+local Module = {}
+
+
+--log("test", "hxiasd", 123123)
 
 function Module.entry()
 	log("hello world")
@@ -26,6 +34,16 @@ function Module.testClass(fooClass)
 	local Enum = require("FooEnum")
 	log("FooEnum.Bar", Enum.Bar)
 	log("FooEnum.Foo", Enum.Foo)
+
+end
+
+function Module.testNew()
+
+	local FooClass = require("FooClass")
+	local foo = FooClass(200, "you")
+
+	foo:PrintIntMem()
+	foo:SayHello("haha")
 
 end
 

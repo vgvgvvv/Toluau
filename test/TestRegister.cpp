@@ -19,6 +19,7 @@ namespace
             std::cout << "do test register" << std::endl;
 
 			Register->BeginClass(FooClass::StaticLuaClass());
+			Register->RegFunction("new", &LuaCppBinding<decltype(&FooClass::create), &FooClass::create>::LuaCFunction);
 			Register->RegFunction("PrintIntMem",
 			                      &LuaCppBinding<decltype(&FooClass::PrintIntMem), &FooClass::PrintIntMem>::LuaCFunction);
 			Register->RegFunction("SayHello",

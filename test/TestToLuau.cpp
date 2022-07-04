@@ -32,7 +32,7 @@ int main()
          return 0;
     }
 
-    lua_getfield(L, -1, "testClass"); // testClass
+    lua_getfield(L, -1, "testNew"); // testClass
     if (lua_isnil(L, -1))
     {
         LUAU_LOG("cannot find entry function")

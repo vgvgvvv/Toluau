@@ -323,8 +323,8 @@ namespace ToLuau
 		if(lua_getmetatable(L, -1)) // table args... table mt
 		{
 			lua_remove(L, -2);
-			lua_pushstring(L, "new"); // find newfunc // table args... mt newfunc
-			lua_rawget(L, -2);
+			lua_pushstring(L, "new"); // find newfunc // table args... mt new
+			lua_rawget(L, -2); // table args... mt newfunc
 
 			if(lua_isfunction(L, -1))
 			{
@@ -339,7 +339,7 @@ namespace ToLuau
 
 		while(lua_gettop(L) != 2)
 		{
-			lua_remove(L, -1);
+			lua_remove(L, -2);
 		}
 
 		// table result

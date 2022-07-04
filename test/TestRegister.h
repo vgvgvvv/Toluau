@@ -20,6 +20,14 @@ class FooClass
 
 public:
 
+	static FooClass* create(int32_t Int, const std::string& str)
+	{
+		auto Result = new FooClass;
+		Result->IntMem = Int;
+		Result->StrMem = str;
+		return Result;
+	}
+
 	void PrintIntMem();
 	void SayHello(const std::string& Word);
 	~FooClass()
