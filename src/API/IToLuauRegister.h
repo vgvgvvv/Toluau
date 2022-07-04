@@ -39,7 +39,7 @@ namespace ToLuau
 		virtual void EndModule() = 0;
 
 		void BeginClass(const std::string& ClassName) { BeginClass(ClassName, ""); };
-		virtual void BeginClass(const std::string& ClassName, const std::string& SuperClassName) = 0;
+		virtual void BeginClass(const std::string& ClassName, const std::string& SuperFullClassName) = 0;
 		virtual void EndClass() = 0;
 
 		virtual void BeginEnum(const std::string& EnumName) = 0;
@@ -49,8 +49,11 @@ namespace ToLuau
 		virtual void EndStaticLib() = 0;
 
 		virtual void RegFunction(const std::string& FuncName, LuaFunc Func) = 0;
-
 		virtual void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) = 0;
+
+        virtual int32_t GetEnumRef(const std::string& EnumName) const = 0;
+        virtual int32_t GetStaticLibRef(const std::string& StaticLibName) const = 0;
+        virtual int32_t GetClassMetaRef(const std::string& ClassName) const = 0;
 
 	protected:
 		ILuauState* Owner = nullptr;

@@ -3,7 +3,6 @@
 //
 
 #include "ToLuauLib.h"
-#include "StackAPI.h"
 #include "ToLuau.h"
 #include "ILuauChunkLoader.h"
 #include "Util/Util.h"

@@ -6,4 +6,10 @@ include(InitProject.cmake)
 InitProject()
 
 ReMake_AddSubDirsRec(src)
-ReMake_AddSubDirsRec(test)
+
+set(IsRoot "")
+IsRootProject(IsRoot)
+if(${IsRoot})
+    message(STATUS "root project add test targets")
+    ReMake_AddSubDirsRec(test)
+endif()

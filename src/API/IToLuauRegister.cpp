@@ -97,6 +97,10 @@ namespace ToLuau
 
 		void RegFunction(const std::string& FuncName, LuaFunc Func) override;
 		void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) override;
+
+        int32_t GetEnumRef(const std::string& EnumName) const override;
+        int32_t GetStaticLibRef(const std::string& StaticLibName) const override;
+        int32_t GetClassMetaRef(const std::string& ClassName) const override;
     private:
 
         static void PushFullName(const ToLuaRegister* Owner, int32_t Pos);
@@ -186,7 +190,7 @@ namespace ToLuau
 
 	void ToLuaRegister::PushModuleName(const std::string &Name)
 	{
-		std::string NewModuleName = CurrentModuleName + "." + Name;
+		std::string NewModuleName = CurrentModuleName + "::" + Name;
 		lua_pushstring(Owner->GetState(), NewModuleName.c_str());
 	}
 
@@ -207,8 +211,8 @@ namespace ToLuau
         {
 	        lua_getref(L, TOLUAU_PRELOAD_REF); // table key space preload
 	        lua_pushvalue(L, -2); // table key space preload space
-	        lua_pushstring(L, "."); // table key space preload space "."
-	        lua_pushvalue(L, 2);  // table key space preload space "." key
+	        lua_pushstring(L, "::"); // table key space preload space "::"
+	        lua_pushvalue(L, 2);  // table key space preload space "::" key
 	        lua_concat(L, 3); // table key space preload fullname
 	        lua_pushvalue(L, -1); // table key space preload fullname fullname
 	        lua_rawget(L, -3); // table key space preload fullname value
@@ -236,7 +240,7 @@ namespace ToLuau
         lua_newtable(L); // table name classtable
 		AddToLoaded(this);
 
-		auto FullName = CurrentModuleName + "." + ClassName;
+		auto FullName = CurrentModuleName + "::" + ClassName;
 
 
 		auto ClassMetaRef_It = ClassMetaRefDict.find(FullName);
@@ -540,7 +544,7 @@ namespace ToLuau
 	void ToLuaRegister::BeginEnum(const std::string& EnumName)
 	{
         auto L = Owner->GetState();
-        auto FullName = CurrentModuleName + "." + EnumName;
+        auto FullName = CurrentModuleName + "::" + EnumName;
         lua_pushstring(L, EnumName.c_str()); // enumname
         lua_newtable(L); // enumname table
 
@@ -774,13 +778,43 @@ namespace ToLuau
         }
 	}
 
+    int32_t ToLuaRegister::GetEnumRef(const std::string &EnumName) const
+    {
+        auto It = EnumRefDict.find(EnumName);
+        if(It != EnumRefDict.end())
+        {
+            return It->second;
+        }
+        return -1;
+    }
+
+    int32_t ToLuaRegister::GetStaticLibRef(const std::string &StaticLibName) const
+    {
+        auto It = StaticLibRefDict.find(StaticLibName);
+        if(It != StaticLibRefDict.end())
+        {
+            return It->second;
+        }
+        return -1;
+    }
+
+    int32_t ToLuaRegister::GetClassMetaRef(const std::string &ClassName) const
+    {
+        auto It = ClassMetaRefDict.find(ClassName);
+        if(It != ClassMetaRefDict.end())
+        {
+            return It->second;
+        }
+        return -1;
+    }
+
     void ToLuaRegister::PushFullName(const ToLuaRegister* Owner, int32_t Pos)
     {
 		auto L = Owner->GetOwner()->GetState();
         if(!Owner->CurrentModuleName.empty())
         {
             lua_pushstring(L, Owner->CurrentModuleName.c_str());
-            lua_pushstring(L, ".");
+            lua_pushstring(L, "::");
             lua_pushvalue(L, Pos < 0 ? Pos - 2 : Pos + 2);
             lua_concat(L, 3);
         }
@@ -811,8 +845,8 @@ namespace ToLuau
 		{
 			lua_getref(L, TOLUAU_PRELOAD_REF); // table key meta space preload
 			lua_pushvalue(L, -2); // table key meta space preload space
-			lua_pushstring(L, "."); // table key meta space preload space "."
-			lua_pushvalue(L, 2); // table key meta space preload space "." key
+			lua_pushstring(L, "::"); // table key meta space preload space "::"
+			lua_pushvalue(L, 2); // table key meta space preload space "::" key
 			lua_concat(L, 3); // table key meta space preload fullname
 			lua_pushvalue(L, -1); // table key meta space preload fullname fullname
 			lua_rawget(L, -3); // table key meta space preload fullname value

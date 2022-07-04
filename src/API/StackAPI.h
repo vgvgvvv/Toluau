@@ -7,14 +7,22 @@
 
 #include <cstdint>
 #include <cassert>
+#include <vector>
+#include <map>
+
 #include "lua.h"
 #include "lualib.h"
 #include "Util/Util.h"
+#include "LuaName.h"
+#include "UserData.h"
 
 namespace ToLuau
 {
 	namespace StackAPI
 	{
+
+        int32_t PushRefObj(lua_State* L, void* Instance, const std::string& ClassName);
+        void* CheckRefObj(lua_State* L, int32_t Pos, const std::string& ClassName);
 
 		#pragma region push & check
 
@@ -42,7 +50,7 @@ namespace ToLuau
 			static int gInt64MT = -1;
 
 			template<typename T>
-			struct StackOperatorWrapper<typename std::is_same<int64_t, T>>
+			struct StackOperatorWrapper<T, typename std::is_same<int64_t, T>>
 			{
 
 				static int32_t Push(lua_State* L, T Value)
@@ -218,23 +226,23 @@ namespace ToLuau
 				}
 			};
 
-			template<>
-			struct StackOperatorWrapper<void*, void>
-			{
-				static int32_t Push(lua_State* L, void* Value)
-				{
-					lua_pushlightuserdata(L, Value);
-					return 1;
-				}
+//			template<>
+//			struct StackOperatorWrapper<void*, void>
+//			{
+//				static int32_t Push(lua_State* L, void* Value)
+//				{
+//					lua_pushlightuserdata(L, Value);
+//					return 1;
+//				}
+//
+//				static void* Check(lua_State* L, int32_t Pos)
+//				{
+//					return static_cast<void*>(lua_tolightuserdata(L, Pos));
+//				}
+//			};
 
-				static void* Check(lua_State* L, int32_t Pos)
-				{
-					return static_cast<void*>(lua_tolightuserdata(L, Pos));
-				}
-			};
-
 			template<>
-			struct StackOperatorWrapper<const std::string&, void>
+			struct StackOperatorWrapper<std::string, void>
 			{
 				static int32_t Push(lua_State* L, const std::string& Value)
 				{
@@ -242,17 +250,12 @@ namespace ToLuau
 					return 1;
 				}
 
-			};
-
-			template<>
-			struct StackOperatorWrapper<std::string, void>
-			{
-				static std::string Check(lua_State* L, int32_t Pos)
-				{
-					size_t len;
-					const char* str = luaL_checklstring(L, Pos, &len);
-					return std::string{str, len};
-				}
+                static std::string Check(lua_State* L, int32_t Pos)
+                {
+                    size_t len;
+                    const char* str = luaL_checklstring(L, Pos, &len);
+                    return std::string{str, len};
+                }
 			};
 
 			template<>
@@ -272,7 +275,7 @@ namespace ToLuau
 			};
 
 			template<typename T>
-			struct StackOperatorWrapper<std::is_enum<T>>
+			struct StackOperatorWrapper<T, std::is_enum<T>>
 			{
 				static int32_t Push(lua_State* L, T Value)
 				{
@@ -298,13 +301,90 @@ namespace ToLuau
 						Push<T>(L, Value[i]);
 						lua_settable(L, -3);
 					}
+                    return 1;
 				}
 
-//				static std::vector<T> Check(lua_State* L, int32_t Pos)
-//				{
-//					return
-//				}
+				static std::vector<T> Check(lua_State* L, int32_t Pos)
+				{
+                    std::vector<T> Result;
+
+                    if(!lua_istable(L, Pos))
+                    {
+                        luaL_typeerrorL(L, Pos, "table");
+                        return Result;
+                    }
+
+                    lua_pushvalue(L, Pos); // table
+
+                    lua_pushnil(L); // table nil
+                    while(lua_next(L, -2) != 0) // table key value
+                    {
+                        lua_pushvalue(L, -2); // table key value key
+                        T Value = Check(L, -2);
+                        Result.insert(Value);
+                        lua_pop(L, 2); // table key
+                    }
+                    lua_pop(L, 2); // table
+                    return Result;
+				}
 			};
+
+            template<typename K, typename V>
+            struct StackOperatorWrapper<std::map<K, V>>
+            {
+                static int32_t Push(lua_State* L, const std::map<K, V>& Value)
+                {
+                    lua_newtable(L);
+                    for (const auto &Item: Value)
+                    {
+                        Push<K>(L, Item.first);
+                        Push<V>(L, Item.second);
+                        lua_settable(L, -3);
+                    }
+                }
+
+                struct std::map<K, V> Check(lua_State* L, int32_t Pos)
+                {
+                    std::map<K, V> Result;
+                    if(!lua_istable(L, Pos))
+                    {
+                        luaL_typeerror(L, Pos, "table");
+                        return Result;
+                    }
+
+                    lua_pushvalue(L, Pos);
+
+                    lua_pushnil(L); // table nil
+                    while(lua_next(L, -2) != 0) // table key value
+                    {
+                        lua_pushvalue(L, -2); // table key value key
+                        K Key = Check(L, -1);
+                        V Value = Check(L, -2);
+                        Result.insert(std::make_pair(Key, Value));
+                        lua_pop(L, 2); // table key
+                    }
+                    lua_pop(L, 1); // table
+                    return Result;
+                }
+
+            };
+
+            template<typename T>
+            struct StackOperatorWrapper<T*>
+            {
+                static int32_t Push(lua_State* L, const T* Value)
+                {
+                    auto ClassName = GetLuaClassName<T>();
+                    return PushRefObj(L, Value, ClassName);
+                }
+
+                static T* Check(lua_State* L, int32_t Pos)
+                {
+                    auto ClassName = GetLuaClassName<T>();
+                    return reinterpret_cast<T*>(CheckRefObj(L, Pos, ClassName));
+                }
+
+            };
 
 		}
 
@@ -339,9 +419,6 @@ namespace ToLuau
 			}
 		}
 
-		// TODO Check Array
-		// TODO Check Map
-
 		template<typename T>
 		int32_t PushTableItem(lua_State*  L, int32_t Index, T Value)
 		{
@@ -349,6 +426,10 @@ namespace ToLuau
 			Push(L, Value);
 			lua_settable(L, -3);
 		}
+
+        int32_t PushRefObj(lua_State* L, void* Instance, const std::string& ClassName);
+
+        void* CheckRefObj(lua_State* L, int32_t Pos, const std::string& ClassName);
 
 		#pragma endregion
 

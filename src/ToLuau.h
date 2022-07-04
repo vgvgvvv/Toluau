@@ -28,6 +28,7 @@ namespace ToLuau
 
         virtual ILuauChunkLoader& GetLoader() const = 0;
         virtual IToLuauAPI& GetAPI() const = 0;
+        virtual IToLuauRegister& GetRegister() const = 0;
 
         static const ILuauState* GetByRawState(lua_State* TargetState);
 
@@ -44,6 +45,7 @@ namespace ToLuau
 
 		ILuauChunkLoader& GetLoader() const override { return *Loader; }
 		IToLuauAPI& GetAPI() const override { return *API; }
+        IToLuauRegister& GetRegister() const override { return *Register; };
 
 	private:
 		std::shared_ptr<ILuauChunkLoader> Loader;
