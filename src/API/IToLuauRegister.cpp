@@ -76,7 +76,7 @@ namespace ToLuau
 		void PushModuleName(const std::string& Name);
 		static int32_t ModuleIndexEvent(lua_State* L);
 
-		void BeginClass(const std::string& ClassName, const std::string& SuperFullClassName) override;
+		void BeginClass(const Class* LuaClass, const Class* SuperLuaClass) override;
 		void EndClass() override;
 
 		static int32_t ClassNewEvent(lua_State* L);
@@ -233,14 +233,14 @@ namespace ToLuau
 		return 1;
 	}
 
-	void ToLuaRegister::BeginClass(const std::string& ClassName, const std::string& SuperFullClassName)
+	void ToLuaRegister::BeginClass(const Class* LuaClass, const Class* SuperLuaClass)
 	{
         auto L = Owner->GetState();
-        lua_pushstring(L, ClassName.c_str()); // table name
+        lua_pushstring(L, LuaClass->Name()); // table name
         lua_newtable(L); // table name classtable
 		AddToLoaded(this);
 
-		auto FullName = CurrentModuleName.empty() ? ClassName : CurrentModuleName + "::" + ClassName;
+		auto FullName = CurrentModuleName.empty() ? LuaClass->Name() : CurrentModuleName + "::" + LuaClass->Name();
 
 
 		auto ClassMetaRef_It = ClassMetaRefDict.find(FullName);
@@ -259,14 +259,14 @@ namespace ToLuau
 
 		// t k classtable mt
 
-		if(!SuperFullClassName.empty())
+		if(SuperLuaClass)
 		{
-			auto BaseClassRef_It = ClassMetaRefDict.find(SuperFullClassName);
+			auto BaseClassRef_It = ClassMetaRefDict.find(SuperLuaClass->Name());
 			if(BaseClassRef_It == ClassMetaRefDict.end())
 			{
 				lua_newtable(L);     // t k classtable mt bmt
 				auto BaseClassRef = lua_ref(L, -1); // t k class mt bmt
-				ClassMetaRefDict.insert(std::make_pair(SuperFullClassName, BaseClassRef));
+				ClassMetaRefDict.insert(std::make_pair(SuperLuaClass->Name(), BaseClassRef));
 				lua_setmetatable(L, -2); // t k class table mt
 			}
 			else

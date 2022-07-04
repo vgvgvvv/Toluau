@@ -21,19 +21,19 @@ namespace ToLuau
             return reinterpret_cast<T*>(RawPtr);
         }
 
-        ~UserData() override
-        {
-            std::cout << "delete UserData" << std::endl;
-            auto RealValue = GetValue();
-            if(RealValue != nullptr)
-            {
-                delete RealValue;
-                RawPtr = nullptr;
-            }
-            else
-            {
-                assert(false);
-            }
-        }
+		void Release()
+		{
+			std::cout << "delete UserData" << std::endl;
+			auto RealValue = GetValue();
+			if(RealValue != nullptr)
+			{
+				delete RealValue;
+				RawPtr = nullptr;
+			}
+			else
+			{
+				assert(false);
+			}
+		}
     };
 }

@@ -6,7 +6,7 @@
 
 #include <cstdint>
 #include <string>
-#include "API/LuaName.h"
+#include "Class/ClassInfo.h"
 
 enum class FooEnum
 {
@@ -16,10 +16,16 @@ enum class FooEnum
 
 class FooClass
 {
+	DEFINE_LUA_CLASS(FooClass)
+
 public:
 
 	void PrintIntMem();
 	void SayHello(const std::string& Word);
+	~FooClass()
+	{
+		std::cout << "release FooClass" << std::endl;
+	}
 
     int32_t GetIntMem() const
     {
@@ -45,7 +51,11 @@ public:
 	std::string StrMem;
 };
 
-DEF_LUA_CLASSNAME(FooClass, FooClass)
+class DerivedFooClass : public FooClass
+{
+	DEFINE_LUA_DERIVED_CLASS(DerivedFooClass, FooClass)
+
+};
 
 
 class FooStaticLib

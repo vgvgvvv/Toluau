@@ -8,6 +8,7 @@
 #include "lua.h"
 
 #include "CppBinding.h"
+#include "Class/Class.h"
 #include "ToLuau_API.h"
 
 #pragma once
@@ -38,8 +39,8 @@ namespace ToLuau
 		virtual void BeginModule(const std::string& ModuleName) = 0;
 		virtual void EndModule() = 0;
 
-		void BeginClass(const std::string& ClassName) { BeginClass(ClassName, ""); };
-		virtual void BeginClass(const std::string& ClassName, const std::string& SuperFullClassName) = 0;
+		void BeginClass(const Class* LuaClass) { BeginClass(LuaClass, nullptr); };
+		virtual void BeginClass(const Class* LuaClass, const Class* SuperLuaClass) = 0;
 		virtual void EndClass() = 0;
 
 		virtual void BeginEnum(const std::string& EnumName) = 0;

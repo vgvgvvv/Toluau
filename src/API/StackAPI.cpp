@@ -47,6 +47,7 @@ namespace ToLuau
                     luaL_typeerror(L, Pos, FullName);
                     return nullptr;
                 }
+	            lua_pop(L, 2);
 
                 return reinterpret_cast<BaseUserData*>(lua_touserdata(L, Pos))->RawPtr;
             }

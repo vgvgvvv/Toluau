@@ -13,8 +13,8 @@
 #include "lua.h"
 #include "lualib.h"
 #include "Util/Util.h"
-#include "LuaName.h"
 #include "UserData.h"
+#include "Class/Class.h"
 
 namespace ToLuau
 {
@@ -374,17 +374,10 @@ namespace ToLuau
             {
                 static int32_t Push(lua_State* L, T* Value)
                 {
-                    auto ClassName = GetLuaClassName<T>();
+                    auto ClassName = T::StaticLuaClass()->Name();
                     UserData<T>* NewUserData = reinterpret_cast<UserData<T>*>(lua_newuserdatadtor(L, sizeof(UserData<T>), [](void* UD){
                         UserData<T>* RealUD = reinterpret_cast<UserData<T>*>(UD);
-                        const T* Instance = RealUD->GetValue();
-                        assert(Instance != nullptr);
-
-                        // TODO how to manage life cycle
-//                        if(RealUD)
-//                        {
-//                            delete RealUD;
-//                        }
+	                    RealUD->Release();
                     }));
                     NewUserData->RawPtr = Value;
                     return PushRefObj(L, NewUserData, ClassName);
@@ -392,7 +385,7 @@ namespace ToLuau
 
                 static T* Check(lua_State* L, int32_t Pos)
                 {
-                    auto ClassName = GetLuaClassName<T>();
+                    auto ClassName = T::StaticLuaClass()->Name();
                     return reinterpret_cast<T*>(CheckRefObj(L, Pos, ClassName));
                 }
 
