@@ -3,6 +3,7 @@
 //
 
 #pragma once
+#include <iostream>
 
 namespace ToLuau
 {
@@ -22,11 +23,16 @@ namespace ToLuau
 
         ~UserData() override
         {
+            std::cout << "delete UserData" << std::endl;
             auto RealValue = GetValue();
             if(RealValue != nullptr)
             {
                 delete RealValue;
                 RawPtr = nullptr;
+            }
+            else
+            {
+                assert(false);
             }
         }
     };

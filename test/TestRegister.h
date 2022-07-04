@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <string>
+#include "API/LuaName.h"
 
 enum class FooEnum
 {
@@ -43,6 +44,9 @@ public:
 	int32_t IntMem;
 	std::string StrMem;
 };
+
+DEF_LUA_CLASSNAME(FooClass, FooClass)
+
 
 class FooStaticLib
 {

@@ -16,17 +16,6 @@ namespace ToLuau
         }
     };
 
-#define DEF_LUA_CLASSNAME(ClassName, RegisterName)      \
-    template<>                                          \
-    struct LuaClassName<ClassName>                      \
-    {                                                   \
-        static const char* GetName()                    \
-        {                                               \
-            return #RegisterName;                       \
-        }                                               \
-    };
-
-
     template<typename T>
     const char* GetLuaClassName()
     {
@@ -36,4 +25,14 @@ namespace ToLuau
 #pragma endregion
 
 }
+
+#define DEF_LUA_CLASSNAME(ClassName, RegisterName)      \
+    template<>                                          \
+    struct ToLuau::LuaClassName<ClassName>              \
+    {                                                   \
+        static const char* GetName()                    \
+        {                                               \
+            return #RegisterName;                       \
+        }                                               \
+    };
 

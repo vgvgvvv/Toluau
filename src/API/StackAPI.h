@@ -376,8 +376,15 @@ namespace ToLuau
                 {
                     auto ClassName = GetLuaClassName<T>();
                     UserData<T>* NewUserData = reinterpret_cast<UserData<T>*>(lua_newuserdatadtor(L, sizeof(UserData<T>), [](void* UD){
-                        auto RealUD = reinterpret_cast<UserData<T>*>(UD);
-                        delete RealUD;
+                        UserData<T>* RealUD = reinterpret_cast<UserData<T>*>(UD);
+                        const T* Instance = RealUD->GetValue();
+                        assert(Instance != nullptr);
+
+                        // TODO how to manage life cycle
+//                        if(RealUD)
+//                        {
+//                            delete RealUD;
+//                        }
                     }));
                     NewUserData->RawPtr = Value;
                     return PushRefObj(L, NewUserData, ClassName);

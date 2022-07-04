@@ -190,7 +190,7 @@ namespace ToLuau
 
 	void ToLuaRegister::PushModuleName(const std::string &Name)
 	{
-		std::string NewModuleName = CurrentModuleName + "::" + Name;
+		std::string NewModuleName = CurrentModuleName.empty() ? Name : CurrentModuleName + "::" + Name;
 		lua_pushstring(Owner->GetState(), NewModuleName.c_str());
 	}
 
@@ -240,7 +240,7 @@ namespace ToLuau
         lua_newtable(L); // table name classtable
 		AddToLoaded(this);
 
-		auto FullName = CurrentModuleName + "::" + ClassName;
+		auto FullName = CurrentModuleName.empty() ? ClassName : CurrentModuleName + "::" + ClassName;
 
 
 		auto ClassMetaRef_It = ClassMetaRefDict.find(FullName);
@@ -542,7 +542,7 @@ namespace ToLuau
 	void ToLuaRegister::BeginEnum(const std::string& EnumName)
 	{
         auto L = Owner->GetState();
-        auto FullName = CurrentModuleName + "::" + EnumName;
+        auto FullName = CurrentModuleName.empty() ? EnumName : CurrentModuleName + "::" + EnumName;
         lua_pushstring(L, EnumName.c_str()); // enumname
         lua_newtable(L); // enumname table
 

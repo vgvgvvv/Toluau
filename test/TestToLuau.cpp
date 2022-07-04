@@ -40,8 +40,6 @@ int main()
     auto Foo = new FooClass();
     ToLuau::StackAPI::Push<FooClass*>(L, Foo); // testClass fooclass
 
-    ToLuau::Lua::DumpStack(L, "before call");
-
     lua_call(L, 1, 0);
 
 	return 0;
