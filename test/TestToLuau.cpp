@@ -12,29 +12,9 @@
 #include "TestRegister.h"
 
 
-template<typename T, typename = void>
-struct Test
-{
-	static int TestFunc()
-	{
-		return 0;
-	}
-};
-
-template<typename T>
-struct Test<T, typename std::enable_if<std::is_enum_v<T>>::type>
-{
-	static int TestFunc()
-	{
-		return 1;
-	}
-};
 
 int main()
 {
-	std::cout << std::is_enum_v<FooEnum> << std::endl;
-	std::cout << Test<FooEnum>::TestFunc() << std::endl;
-
     ToLuau::ToLuauState ToLuauState;
 
     std::filesystem::path CurrentPath(__FILE__);
