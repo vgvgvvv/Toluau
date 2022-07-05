@@ -3,14 +3,16 @@
 local log = toluau.log
 local require = toluau.require;
 
---type Point = {x : number, y : number}
---local p : Point = {x = 100, y = 200}
---p.z = 300
---
---print(p.x, p.y);
---print(p.z)
+type Point = {x : number, y : number}
+local p : Point = {x = 100, y = 200}
+
+print(p.x, p.y);
+print(p.z)
 
 local Module = {}
+
+local AnotherModule = require(anotherfile)
+
 
 
 --log("test", "hxiasd", 123123)
