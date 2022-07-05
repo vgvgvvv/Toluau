@@ -12,10 +12,10 @@ namespace ToLuau
 {
     namespace StackAPI
     {
-        int32_t PushRefObj(lua_State *L, BaseUserData* Instance, const std::string &ClassName) // ud
+        int32_t PushRefObj(lua_State *L, BaseUserData* Instance, const Class* LuaClass) // ud
         {
             auto Owner = ILuauState::GetByRawState(L);
-            auto ClassRef = Owner->GetRegister().GetClassMetaRef(ClassName);
+            auto ClassRef = Owner->GetRegister().GetClassMetaRef(LuaClass->Name());
             if(ClassRef > 0)
             {
                 lua_getref(L, ClassRef); // ud meta
@@ -23,15 +23,15 @@ namespace ToLuau
             }
             else
             {
-                lua_pushlightuserdata(L, Instance);
+                luaL_errorL(L, "cannot find class meta ref %s", LuaClass->Name());
             }
             return 1;
         }
 
-        void* CheckRefObj(lua_State* L, int32_t Pos, const std::string& ClassName)
+        void* CheckRefObj(lua_State* L, int32_t Pos, const Class* LuaClass)
         {
             auto Owner = ILuauState::GetByRawState(L);
-            auto ClassRef = Owner->GetRegister().GetClassMetaRef(ClassName);
+            auto ClassRef = Owner->GetRegister().GetClassMetaRef(LuaClass->Name());
             if(ClassRef > 0)
             {
                 if(!lua_isuserdata(L, Pos))
@@ -42,23 +42,31 @@ namespace ToLuau
                 lua_getref(L, ClassRef); // ref
                 lua_getfield(L, -1, ".name"); // ref fullname
                 auto FullName = lua_tostring(L, -1);
-                if(FullName != ClassName)
+                auto CurrentClass = LuaClass;
+                while(true)
                 {
-                    luaL_typeerror(L, Pos, FullName);
-                    return nullptr;
+                    if(std::strcmp(FullName, LuaClass->Name()) == 0)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        CurrentClass = CurrentClass->GetBaseClass();
+                        if(!CurrentClass)
+                        {
+                            luaL_typeerrorL(L, Pos, LuaClass->Name());
+                            return nullptr;
+                        }
+                    }
                 }
+
 	            lua_pop(L, 2);
 
                 return reinterpret_cast<BaseUserData*>(lua_touserdata(L, Pos))->RawPtr;
             }
             else
             {
-                if(!lua_islightuserdata(L, Pos))
-                {
-                    luaL_typeerror(L, Pos, "lightuserdata");
-                    return nullptr;
-                }
-                return reinterpret_cast<BaseUserData*>(lua_tolightuserdata(L, Pos))->RawPtr;
+                luaL_errorL(L, "cannot find class meta ref %s", LuaClass->Name());
             }
             return nullptr;
         }

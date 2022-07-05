@@ -21,8 +21,8 @@ namespace ToLuau
 	namespace StackAPI
 	{
 
-        ToLuau_API int32_t PushRefObj(lua_State* L, BaseUserData* Instance, const std::string& ClassName);
-        ToLuau_API void* CheckRefObj(lua_State* L, int32_t Pos, const std::string& ClassName);
+        ToLuau_API int32_t PushRefObj(lua_State* L, BaseUserData* Instance, const Class* LuaClass);
+        ToLuau_API void* CheckRefObj(lua_State* L, int32_t Pos, const Class* LuaClass);
 
 		#pragma region push & check
 
@@ -354,8 +354,44 @@ namespace ToLuau
 
             };
 
+            // SFINAE test
+            template <typename T>
+            class HasStaticLuaClass
+            {
+                typedef char one;
+                struct two { char x[2]; };
+
+                template <typename C>
+                static one test( decltype(&C::StaticLuaClass) ) ;
+                template <typename C>
+                static two test(...);
+
+            public:
+                enum { Value = sizeof(test<T>(0)) == sizeof(char) };
+            };
+
             template<typename T>
-            struct StackOperatorWrapper<T*>
+            struct StackOperatorWrapper<T*, typename std::enable_if<!HasStaticLuaClass<T>::Value>::type>
+            {
+                static int32_t Push(lua_State* L, T* Value)
+                {
+                    lua_pushlightuserdata(L, Value);
+                    return 1;
+                }
+
+                static T* Check(lua_State* L, int32_t Pos)
+                {
+                    if(!lua_islightuserdata(L, Pos))
+                    {
+                        luaL_typeerror(L, Pos, "lightuserdata");
+                        return nullptr;
+                    }
+                    return reinterpret_cast<T*>(lua_tolightuserdata(L, Pos))->RawPtr;
+                }
+            };
+
+            template<typename T>
+            struct StackOperatorWrapper<T*, typename std::enable_if<HasStaticLuaClass<T>::Value>::type>
             {
                 static int32_t Push(lua_State* L, T* Value)
                 {
@@ -365,13 +401,13 @@ namespace ToLuau
 	                    RealUD->Release();
                     }));
                     NewUserData->RawPtr = Value;
-                    return PushRefObj(L, NewUserData, ClassName);
+                    return PushRefObj(L, NewUserData, T::StaticLuaClass());
                 }
 
                 static T* Check(lua_State* L, int32_t Pos)
                 {
                     auto ClassName = T::StaticLuaClass()->Name();
-                    return reinterpret_cast<T*>(CheckRefObj(L, Pos, ClassName));
+                    return reinterpret_cast<T*>(CheckRefObj(L, Pos, T::StaticLuaClass()));
                 }
 
             };
