@@ -283,7 +283,7 @@ namespace ToLuau
 					for (uint32_t i = 0; i < Value.size(); ++i)
 					{
 						lua_pushinteger(L, static_cast<int32_t>(i));
-						Push<T>(L, Value[i]);
+                        StackOperatorWrapper<T>::Push(L, Value[i]);
 						lua_settable(L, -3);
 					}
                     return 1;
@@ -305,7 +305,7 @@ namespace ToLuau
                     while(lua_next(L, -2) != 0) // table key value
                     {
                         lua_pushvalue(L, -2); // table key value key
-                        T Value = Check(L, -2);
+                        T Value = StackOperatorWrapper<T>::Check(L, -2);
                         Result.insert(Value);
                         lua_pop(L, 2); // table key
                     }
@@ -322,8 +322,8 @@ namespace ToLuau
                     lua_newtable(L);
                     for (const auto &Item: Value)
                     {
-                        Push<K>(L, Item.first);
-                        Push<V>(L, Item.second);
+                        StackOperatorWrapper<K>::Push(L, Item.first);
+                        StackOperatorWrapper<V>::Push(L, Item.second);
                         lua_settable(L, -3);
                     }
                 }
@@ -343,8 +343,8 @@ namespace ToLuau
                     while(lua_next(L, -2) != 0) // table key value
                     {
                         lua_pushvalue(L, -2); // table key value key
-                        K Key = Check(L, -1);
-                        V Value = Check(L, -2);
+                        K Key = StackOperatorWrapper<K>::Check(L, -1);
+                        V Value = StackOperatorWrapper<V>::Check(L, -2);
                         Result.insert(std::make_pair(Key, Value));
                         lua_pop(L, 2); // table key
                     }
