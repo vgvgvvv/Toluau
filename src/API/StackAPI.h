@@ -328,7 +328,7 @@ namespace ToLuau
                     }
                 }
 
-                struct std::map<K, V> Check(lua_State* L, int32_t Pos)
+                static std::map<K, V> Check(lua_State* L, int32_t Pos)
                 {
                     std::map<K, V> Result;
                     if(!lua_istable(L, Pos))
