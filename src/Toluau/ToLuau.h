@@ -8,7 +8,11 @@
 #include "lua.h"
 #include "lualib.h"
 
+#ifdef TOLUAUUNREAL_API
+#include "Toluau/ToLuau_API.h"
+#else
 #include "ToLuau_API.h"
+#endif
 
 
 namespace ToLuau

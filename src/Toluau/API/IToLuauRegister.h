@@ -2,6 +2,8 @@
 // Created by 35207 on 2022/6/26 0026.
 //
 
+#pragma once
+
 #include <string>
 #include <functional>
 
@@ -9,9 +11,13 @@
 
 #include "Toluau/API/CppBinding.h"
 #include "Toluau/Class/Class.h"
-#include "ToLuau_API.h"
 
-#pragma once
+#ifdef TOLUAUUNREAL_API
+#include "Toluau/ToLuau_API.h"
+#else
+#include "ToLuau_API.h"
+#endif
+
 
 struct lua_State;
 

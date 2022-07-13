@@ -16,7 +16,14 @@
 #include "lualib.h"
 #include "UserData.h"
 #include "Toluau/Util/Util.h"
+
+#ifdef TOLUAUUNREAL_API
+#include "Toluau/ToLuau_API.h"
+#else
 #include "ToLuau_API.h"
+#endif
+
+
 #ifdef TOLUAUUNREAL_API
 #include "UObject/StrongObjectPtr.h"
 #include "CoreMinimal.h"

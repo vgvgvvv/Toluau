@@ -5,7 +5,12 @@
 #include <optional>
 #include <functional>
 
+#ifdef TOLUAUUNREAL_API
+#include "Toluau/ToLuau_API.h"
+#else
 #include "ToLuau_API.h"
+#endif
+
 #include "Luau/Compiler.h"
 
 namespace ToLuau
