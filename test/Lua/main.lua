@@ -3,16 +3,9 @@
 local log = toluau.log
 local require = toluau.require;
 
-type Point = {x : number, y : number}
-local p : Point = {x = 100, y = 200}
-
-print(p.x, p.y);
-print(p.z)
-
 local Module = {}
 
-local AnotherModule = require(anotherfile)
-
+local AnotherModule = require("anotherfile")
 
 
 --log("test", "hxiasd", 123123)
@@ -33,10 +26,10 @@ function Module.testClass(fooClass)
 	local result = Lib.Add(1, 2);
 	log(result)
 
-	local Enum = require("FooEnum")
+	local Enum = require("FooEnum1")
 	log("FooEnum.Bar", Enum.Bar)
 	log("FooEnum.Foo", Enum.Foo)
-
+	log("FooEnum.Invalid", Enum.Invalid)
 end
 
 function Module.testNew()

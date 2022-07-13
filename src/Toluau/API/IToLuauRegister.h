@@ -7,8 +7,8 @@
 
 #include "lua.h"
 
-#include "CppBinding.h"
-#include "Class/Class.h"
+#include "Toluau/API/CppBinding.h"
+#include "Toluau/Class/Class.h"
 #include "ToLuau_API.h"
 
 #pragma once
@@ -39,6 +39,9 @@ namespace ToLuau
 		virtual void BeginModule(const std::string& ModuleName) = 0;
 		virtual void EndModule() = 0;
 
+		void BeginClass(const std::string& ClassName) { BeginClass(ClassName, ""); }
+		virtual void BeginClass(const std::string& ClassName, const std::string& SuperClassName) = 0;
+		
 		void BeginClass(const Class* LuaClass) { BeginClass(LuaClass, nullptr); };
 		virtual void BeginClass(const Class* LuaClass, const Class* SuperLuaClass) = 0;
 		virtual void EndClass() = 0;
@@ -51,6 +54,13 @@ namespace ToLuau
 
 		virtual void RegFunction(const std::string& FuncName, LuaFunc Func) = 0;
 		virtual void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) = 0;
+
+#ifdef TOLUAUUNREAL_API
+		virtual void RegUClass(UClass* Class) = 0;
+		virtual void RegUEnum(UEnum* Enum) = 0;
+		virtual void RegUStruct(UScriptStruct* Struct) = 0;
+	
+#endif
 
         virtual int32_t GetEnumRef(const std::string& EnumName) const = 0;
         virtual int32_t GetStaticLibRef(const std::string& StaticLibName) const = 0;

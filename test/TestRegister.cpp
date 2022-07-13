@@ -4,10 +4,10 @@
 
 #include <iostream>
 #include "TestRegister.h"
-#include "API/IToLuauRegister.h"
-#include "API/StackAPI.h"
-#include "ToLuau.h"
-#include "API/RegisterMacro.h"
+#include "Toluau/API/IToLuauRegister.h"
+#include "Toluau/API/StackAPI.h"
+#include "Toluau/ToLuau.h"
+#include "Toluau/API/RegisterMacro.h"
 
 LUAU_BEGIN_CLASS(FooClass);
 LUAU_REG_NEW_FUNC(FooClass, create);

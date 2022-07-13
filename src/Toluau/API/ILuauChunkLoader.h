@@ -21,7 +21,7 @@ namespace ToLuau
 	public:
 		explicit IScriptLoader(ILuauChunkLoader* InOwner) : Owner(InOwner){}
 		virtual ~IScriptLoader() = default;
-		virtual bool Load(const std::string& path) = 0;
+		virtual bool Load(const std::string& path, bool ForceReload) = 0;
 	protected:
 		ILuauChunkLoader* Owner;
 	};
@@ -42,9 +42,9 @@ namespace ToLuau
 
 		static std::shared_ptr<ILuauChunkLoader> Create(ILuauState* Owner);
 
-		virtual bool Require(const std::string& Path) const = 0;
+		virtual bool Require(const std::string& Path, bool ForceReload = false) const = 0;
 
-		virtual bool RequireFromFile(const std::string& Path, const std::string& FileName) const = 0;
+		virtual bool RequireFromFile(const std::string& Path, const std::string& FileName, bool ForceReload) const = 0;
 
 		const std::vector<std::string>& GetLoadPaths() const;
 
@@ -64,6 +64,10 @@ namespace ToLuau
 		ILuauState* Owner = nullptr;
 		Luau::CompileOptions CompileOptions = {};
 
+#ifdef TOLUAUUNREAL_API
+		TOptional<std::function<std::string(const std::string&)>> DefaultLoadFileFunc;
+#else
 		std::optional<std::function<std::string(const std::string&)>> DefaultLoadFileFunc;
+#endif
 	};
 }

@@ -2,11 +2,13 @@
 // Created by 35207 on 2022/6/26 0026.
 //
 
+#include "Util.h"
+
 #include <iostream>
 #include "lua.h"
-#include "Util.h"
 #include "Luau/Common.h"
 
+#ifndef TOLUAUUNREAL_API
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -21,6 +23,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#endif
+#else
+#include "ToluauUnreal.h"
 #endif
 
 namespace ToLuau
@@ -53,6 +58,18 @@ namespace ToLuau
 			result.push_back(s);
 			return result;
 		}
+
+#ifdef TOLUAUUNREAL_API
+		std::string FStringToStdString(const FString& Str)
+		{
+			return std::string(TCHAR_TO_UTF8(*Str));
+		}
+
+		FString StdStringToFString(const std::string& Str)
+		{
+			return FString(Str.c_str());
+		}
+#endif
 
 
 	}
@@ -90,6 +107,7 @@ namespace ToLuau
 		}
 	}
 
+#ifndef TOLUAUUNREAL_API
 	namespace FileEx
 	{
 		#ifdef _WIN32
@@ -151,33 +169,61 @@ namespace ToLuau
 			return result;
 		}
 	}
-
+#endif
+	
 	namespace Lua
 	{
+#ifdef TOLUAUUNREAL_API
+		TOptional<std::function<void(const std::string&)>> OnLog;
+		TOptional<std::function<void(const std::string&)>> OnError;
+#else
 		std::optional<std::function<void(const std::string&)>> OnLog;
 		std::optional<std::function<void(const std::string&)>> OnError;
+#endif
 
 		void Log(const std::string &Log)
 		{
+#ifdef TOLUAUUNREAL_API
+			if(OnLog.IsSet())
+			{
+				OnLog.GetValue()(Log);
+			}
+#else
 			if(OnLog.has_value())
 			{
 				OnLog.value()(Log);
 			}
+#endif
 			else
 			{
+#ifdef TOLUAUUNREAL_API
+				UE_LOG(LogToLuau, Log, TEXT("%s"), *StringEx::StdStringToFString(Log))
+#else
 				std::cout << Log << std::endl;
+#endif
 			}
 		}
 
 		void Error(const std::string &Error)
 		{
+#ifdef TOLUAUUNREAL_API
+			if(OnError.IsSet())
+			{
+				OnError.GetValue()(Error);
+			}
+#else
 			if(OnError.has_value())
 			{
 				OnError.value()(Error);
 			}
+#endif
 			else
 			{
+#ifdef TOLUAUUNREAL_API
+				UE_LOG(LogToLuau, Error, TEXT("%s"), *StringEx::StdStringToFString(Error))
+#else
 				std::cerr << Error << std::endl;
+#endif
 			}
 		}
 

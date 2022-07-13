@@ -1,10 +1,13 @@
 #include "ILuauChunkLoader.h"
 
-#include "ToLuau.h"
-#include "Util/Util.h"
+#include "Toluau/ToLuau.h"
+#include "Toluau/Util/Util.h"
 #include "ToLuauLib.h"
 #include "Luau/Common.h"
 #include "Luau/Compiler.h"
+#ifdef TOLUAUUNREAL_API
+#include "CoreMinimal.h"
+#endif
 
 namespace ToLuau
 {
@@ -19,16 +22,14 @@ namespace ToLuau
 		{
 		}
 
-		bool Load(const std::string& Name) override;
+		bool Load(const std::string& Name, bool ForceReload) override;
 	};
 
-	bool FileScriptLoader::Load(const std::string& Name)
+	bool FileScriptLoader::Load(const std::string& Name, bool ForceReload)
 	{
-
-
 		for (auto& LoadPath : Owner->GetLoadPaths())
 		{
-			if(Owner->RequireFromFile(LoadPath, Name))
+			if(Owner->RequireFromFile(LoadPath, Name, ForceReload))
 			{
 				return true;
 			}
@@ -49,14 +50,18 @@ namespace ToLuau
                 {
                 }
 
-        bool Load(const std::string& path) override;
+        bool Load(const std::string& Path, bool ForceReload) override;
     };
 
-    bool PackageScriptLoader::Load(const std::string &path)
+    bool PackageScriptLoader::Load(const std::string &Path, bool ForceReload)
     {
+    	if(ForceReload)
+    	{
+    		return false;
+    	}
         auto L = Owner->GetOwner()->GetState();
         lua_getref(L, TOLUAU_LOADED_REF); // preload
-        lua_pushstring(L, path.c_str()); // preload path
+        lua_pushstring(L, Path.c_str()); // preload path
         lua_rawget(L, -2); // preload value
         if(lua_isnil(L, -1))
         {
@@ -74,9 +79,9 @@ namespace ToLuau
 
 		explicit LuauChunkLoader(ILuauState* InOwner);
 
-		bool Require(const std::string& Path) const override;
+		bool Require(const std::string& Path, bool ForceReload) const override;
 
-		bool RequireFromFile(const std::string& Path, const std::string& FileName) const override;
+		bool RequireFromFile(const std::string& Path, const std::string& FileName, bool ForceReload) const override;
 
 	};
 
@@ -86,11 +91,11 @@ namespace ToLuau
 		AddLoader(std::make_shared<FileScriptLoader>(this));
 	}
 
-	bool LuauChunkLoader::Require(const std::string& Path) const
+	bool LuauChunkLoader::Require(const std::string& Path, bool ForceReload) const
 	{
 		for(auto& Loader : Loaders)
 		{
-			if(Loader->Load(Path))
+			if(Loader->Load(Path, ForceReload))
 			{
 				return true;
 			}
@@ -100,7 +105,7 @@ namespace ToLuau
 		return false;
 	}
 
-	bool LuauChunkLoader::RequireFromFile(const std::string& Path, const std::string& FileName) const
+	bool LuauChunkLoader::RequireFromFile(const std::string& Path, const std::string& FileName, bool ForceReload) const
 	{
 		auto L = Owner->GetState();
 
@@ -109,8 +114,6 @@ namespace ToLuau
 		StringEx::ReplaceAll(ModuleName, ".", "/");
 
         Lua::Log(StringEx::Format("require name : %s", ModuleName.c_str()));
-
-        auto ChunkName = "=" + ModuleName;
 
 		auto FinishRequire = [](lua_State* L)->int32_t{
 			if (lua_isstring(L, -1))
@@ -125,16 +128,32 @@ namespace ToLuau
 			return 1;
 		};
 
-		luaL_findtable(L, LUA_REGISTRYINDEX, "_MODULES", 1);
+		lua_getref(L, TOLUAU_LOADED_REF);
 
-		// return the module from the cache
-		lua_getfield(L, -1, ModuleName.c_str());
-		if (!lua_isnil(L, -1))
-			return FinishRequire(L);
-		lua_pop(L, 1);
+		if(!ForceReload)
+		{
+			// return the module from the cache
+			lua_getfield(L, -1, ModuleName.c_str());
+			if (!lua_isnil(L, -1))
+			{
+				FinishRequire(L) ;
+				return true;
+			}
+			lua_pop(L, 1);
+		}
 
         std::string Content;
         auto TryReadFile = [this, &Content](const std::string& FinalLoadPath)->bool {
+#ifdef TOLUAUUNREAL_API
+        	if(DefaultLoadFileFunc.IsSet())
+        	{
+        		Content = DefaultLoadFileFunc.GetValue()(FinalLoadPath);
+        		if(!Content.empty())
+        		{
+        			return true;
+        		}
+        	}
+#else
             if(DefaultLoadFileFunc.has_value())
             {
                 Content = DefaultLoadFileFunc.value()(FinalLoadPath);
@@ -143,14 +162,26 @@ namespace ToLuau
                     return true;
                 }
             }
+#endif
             else
             {
+#ifdef TOLUAUUNREAL_API
+            	FString Result;
+            	FString FilePath = StringEx::StdStringToFString(FinalLoadPath);
+				FFileHelper::LoadFileToString(Result, *FilePath);
+            	if(!Result.IsEmpty())
+            	{
+            		Content = StringEx::FStringToStdString(Result);
+            		return true;
+            	}
+#else
                 auto TempContent = FileEx::ReadFile(FinalLoadPath);
-                if(TempContent.has_value())
-                {
-                    Content = TempContent.value();
-                    return true;
-                }
+            	if(TempContent.has_value())
+            	{
+            		Content = TempContent.value();
+            		return true;
+            	}
+#endif
             }
             return false;
         };
@@ -177,7 +208,7 @@ namespace ToLuau
 		}
 
 		std::string ByteCode = Luau::compile(Content, CompileOptions);
-		if (luau_load(L, ChunkName.c_str(), ByteCode.data(), ByteCode.size(), 0) == 0)
+		if (luau_load(L, ModuleName.c_str(), ByteCode.data(), ByteCode.size(), 0) == 0)
 		{
             bool Succ = true;
             if (lua_gettop(L) == 0)

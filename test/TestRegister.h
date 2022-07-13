@@ -6,7 +6,7 @@
 
 #include <cstdint>
 #include <string>
-#include "Class/ClassInfo.h"
+#include "Toluau/Class/ClassInfo.h"
 
 enum class FooEnum
 {

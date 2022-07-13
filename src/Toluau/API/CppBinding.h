@@ -1,7 +1,7 @@
 #pragma once
 
 #include "StackAPI.h"
-#include "Util/Template.h"
+#include "Toluau/Util/Template.h"
 
 // reference the way of function binding from slua unreal
 // https://github.com/Tencent/sluaunreal/blob/master/Plugins/slua_unreal/Source/slua_unreal/Public/LuaCppBinding.h

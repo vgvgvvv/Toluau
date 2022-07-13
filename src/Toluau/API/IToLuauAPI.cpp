@@ -3,10 +3,11 @@
 //
 
 #include "IToLuauAPI.h"
-#include "Util/Util.h"
+#include "Toluau/Util/Util.h"
 
 #include "lua.h"
-#include "ToLuau.h"
+#include "Toluau/ToLuau.h"
+#include "ToLuauLib.h"
 
 
 namespace ToLuau
@@ -54,15 +55,23 @@ namespace ToLuau
 
 		auto Names = StringEx::Split(LuaFunName, ".");
 		auto L = Owner->GetState();
-		lua_getglobal(L, Names[0].c_str());
+		lua_getglobal(L, Names[0].c_str()); // globalvalue
 
-		if(lua_isnil(L, -1))
+		if(lua_isnil(L, -1)) // nil
 		{
-			lua_remove(L, -1);
-			return false;
-		}
+			lua_pop(L, 1);
 
-		for(int32_t i = 0; i < Names.size(); ++i)
+			lua_getref(L, TOLUAU_LOADED_REF); // ref
+			lua_getfield(L, -1, Names[0].c_str()); // ref field
+			if(lua_isnil(L, -1))
+			{
+				lua_pop(L, 1);
+				return false;
+			}
+		}
+		
+
+		for(int32_t i = 1; i < Names.size(); ++i)
 		{
 			if(!lua_istable(L, -1))
 			{
@@ -95,9 +104,20 @@ namespace ToLuau
 	void ToLuauAPI::DoPCall(int32_t ArgNum, int32_t RetNum)
 	{
 		auto L = Owner->GetState();
+
 		if(lua_pcall(L, ArgNum, RetNum, 0) != LUA_OK)
 		{
-			auto msg = lua_tostring(L, lua_gettop(L));
+			lua_Debug ar;
+			std::string msg = lua_tostring(L, lua_gettop(L));
+			if (lua_getinfo(L, 0, "sln", &ar))
+			{
+				msg += ar.short_src;
+				msg += ':';
+				msg += std::to_string(ar.currentline);
+				msg += ": ";
+			}
+			msg += "\nstack backtrace:\n";
+			msg += lua_debugtrace(L);
 			Lua::Error(msg);
 			lua_pop(L, 1);
 		}
@@ -108,6 +128,7 @@ namespace ToLuau
 		bool bIsClassFunc;
 		if (!GetFuncGlobal(FuncName, &bIsClassFunc))
 		{
+			LUAU_LOG_F("cannot find function", FuncName.c_str())
 			return;
 		}
 
@@ -119,6 +140,7 @@ namespace ToLuau
 		bool bIsClassFunc;
 		if (!GetFuncGlobal(FuncName, &bIsClassFunc))
 		{
+			LUAU_LOG_F("cannot find function", FuncName.c_str())
 			return;
 		}
 

@@ -10,11 +10,17 @@
 #include <functional>
 #include <stdexcept>
 #include "ToLuau_API.h"
+#ifdef TOLUAUUNREAL_API
+#include "CoreMinimal.h"
+#endif
+
+struct lua_State;
 
 namespace ToLuau
 {
 	namespace StringEx
 	{
+		
         ToLuau_API void ReplaceAll(std::string& str, const std::string& from, const std::string& to);
 
         ToLuau_API std::vector<std::string> Split(const std::string& str, const std::string& split);
@@ -30,6 +36,11 @@ namespace ToLuau
             return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
         }
 
+#ifdef TOLUAUUNREAL_API
+		ToLuau_API std::string FStringToStdString(const FString& Str);
+
+		ToLuau_API FString StdStringToFString(const std::string& Str);
+#endif
     };
 
 	namespace PathHelper
@@ -37,16 +48,23 @@ namespace ToLuau
         ToLuau_API std::string Combine(const std::string& p1, const std::string& p2);
 	}
 
+#ifndef TOLUAUUNREAL_API
 	namespace FileEx
 	{
         ToLuau_API std::optional<std::string> ReadFile(const std::string& name);
 	}
+#endif
 
 	namespace Lua
 	{
+#ifdef TOLUAUUNREAL_API
+		extern TOptional<std::function<void(const std::string&)>> OnLog;
+		extern TOptional<std::function<void(const std::string&)>> OnError;
+#else
 		extern std::optional<std::function<void(const std::string&)>> OnLog;
 		extern std::optional<std::function<void(const std::string&)>> OnError;
-
+#endif
+		
         ToLuau_API void Log(const std::string& Log);
 
         ToLuau_API void Error(const std::string& Error);

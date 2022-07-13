@@ -1,4 +1,5 @@
 #pragma once
+#include "IToLuauRegister.h"
 
 #define __STATIC_REGISTER_LUAU_BEGIN(Name) \
 namespace \
@@ -51,3 +52,18 @@ namespace \
 #define LUAU_END_STATIC_LIB(LibName) \
     Register->EndStaticLib(); \
     __STATIC_REGISTER_LUAU_END(LibName)
+
+#define LUAU_REG_UCLASS(ClassName) \
+	__STATIC_REGISTER_LUAU_BEGIN(ClassName) \
+	Register->RegUClass(ClassName::StaticClass()); \
+	__STATIC_REGISTER_LUAU_END(ClassName)
+
+#define LUAU_REG_UENUM(EnumName) \
+	__STATIC_REGISTER_LUAU_BEGIN(EnumName) \
+	Register->RegUEnum(StaticEnum<EnumName>()); \
+	__STATIC_REGISTER_LUAU_END(EnumName)
+
+#define LUAU_REG_USTRUCT(StructName) \
+	__STATIC_REGISTER_LUAU_BEGIN(StructName) \
+	Register->RegUStruct(StructName::StaticStruct()); \
+	__STATIC_REGISTER_LUAU_END(StructName)

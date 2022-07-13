@@ -3,9 +3,9 @@
 //
 
 #include "ToLuauLib.h"
-#include "ToLuau.h"
+#include "Toluau/ToLuau.h"
 #include "ILuauChunkLoader.h"
-#include "Util/Util.h"
+#include "Toluau/Util/Util.h"
 
 namespace ToLuau
 {
@@ -16,6 +16,7 @@ namespace ToLuau
 	int32_t TOLUAU_GLOBAL_REF = 24;
 	int32_t TOLUAU_REQUIRE_REF = 25;
     int32_t TOLUAU_REGISTER_REF = 26;
+	int32_t TOLUAU_ERROR_HANDLER_REF = 27;
 
 	namespace ToluauDefaultLibs
 	{
@@ -77,10 +78,22 @@ namespace ToLuau
 			return 1;
 		}
 
+		static int DumpTable(lua_State* L)
+		{
+			if(!lua_istable(L, -1))
+			{
+				luaL_typeerrorL(L, -1, "table");
+				return 0;
+			}
+			Lua::DumpTable(L, -1);
+			return 0;
+		}
+
 		static const luaL_Reg Reg[] = {
 				{"log", Log},
-				{"log_error", Error},
+				{"logError", Error},
 				{"require", Require},
+				{"dumpTable", DumpTable},
                 {NULL, NULL},
 		};
 	}
@@ -96,6 +109,20 @@ namespace ToLuau
             {NULL, NULL}
 	};
 
+	static int32_t HandleError(lua_State* L)
+	{
+		std::string Msg;
+		auto Top = lua_gettop(L);
+		if(lua_isstring(L, -1))
+		{
+			Msg += lua_tostring(L, -1);
+		}
+		Msg += "\nstack backtrace:\n";
+		Msg += lua_debugtrace(L);
+		LUAU_LOG(Msg)
+		return 0;
+	}
+	
 	void OpenCacheLuaVar(lua_State* L)
 	{
 		lua_pushthread(L);
@@ -106,6 +133,9 @@ namespace ToLuau
 
         lua_newtable(L);
         lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_REGISTER_REF);
+
+		lua_pushcfunction(L, HandleError, "HandleErrorFunction");
+		lua_rawseti(L, LUA_REGISTRYINDEX, TOLUAU_ERROR_HANDLER_REF);
 
 		if(luaL_findtable(L, LUA_REGISTRYINDEX, "_LOADED.toluau", 1) == nullptr) // toluau_lib
 		{

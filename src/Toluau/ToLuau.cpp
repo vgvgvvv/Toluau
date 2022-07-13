@@ -4,10 +4,10 @@
 
 #include "ToLuau.h"
 #include "lualib.h"
-#include "API/ToLuauLib.h"
-#include "API/ILuauChunkLoader.h"
-#include "API/IToLuauAPI.h"
-#include "API/IToLuauRegister.h"
+#include "Toluau/API/ToLuauLib.h"
+#include "Toluau/API/ILuauChunkLoader.h"
+#include "Toluau/API/IToLuauAPI.h"
+#include "Toluau/API/IToLuauRegister.h"
 
 namespace ToLuau
 {
@@ -17,8 +17,9 @@ namespace ToLuau
     {
         L = luaL_newstate();
         luaL_openlibs(L);
-        ToLuau::OpenToLuauLibs(L);
-
+        OpenToLuauLibs(L);
+		StackAPI::InitStackAPI();
+    	
         AllLuauState.insert(std::pair(L, this));
 
     }
