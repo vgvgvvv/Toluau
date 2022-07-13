@@ -634,10 +634,10 @@ namespace ToLuau
 
 			if(lua_istable(L, -1))
 			{
-				lua_pushvalue(L, -2); // table key meta gettable key
+				lua_pushvalue(L, -3); // table key meta gettable key
 				lua_rawget(L, -2); // table key meta gettable getfunc
 
-				if(lua_isfunction(L, -1))
+                if(lua_isfunction(L, -1))
 				{
 					lua_call(L, 0, 1); // table key meta gettable value
 					lua_pushvalue(L, -2); // table key meta gettable value key
@@ -791,7 +791,7 @@ namespace ToLuau
             lua_rawset(L, -3);
             lua_pop(L, 1);
         }
-	}
+    }
 	
 #ifdef TOLUAUUNREAL_API
 	void ToLuaRegister::RegUClass(UClass* Class)

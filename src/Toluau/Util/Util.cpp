@@ -248,7 +248,7 @@ namespace ToLuau
                 else if(lua_istable(L, -1))
                 {
                     LUAU_LOG_F("%d - %s", i, TypeName);
-                    DumpTable(L, -1);
+                    DumpTable(L, -1, 1);
                 }
                 else
                 {
@@ -259,8 +259,13 @@ namespace ToLuau
         }
 
         // ref from https://stackoverflow.com/questions/6137684/iterate-through-lua-table
-        void DumpTable(lua_State *L, int32_t Index)
+        void DumpTable(lua_State *L, int32_t Index, int32_t Level)
         {
+            std::string levelStr;
+            for(int i = 0; i < Level; i ++)
+            {
+                levelStr += "\t";
+            }
             // Push another reference to the table on top of the stack (so we know
             // where it is, and this function can work for negative, positive and
             // pseudo indices
@@ -280,12 +285,18 @@ namespace ToLuau
                 if(lua_isnumber(L, -2) || lua_isstring(L, -2))
                 {
                     const char *value = lua_tostring(L, -2);
-                    LUAU_LOG_F("%s => %s(%s)\n", key, TypeName, value);
+                    LUAU_LOG_F("%s%s => %s(%s)", levelStr.c_str(), key, TypeName, value);
+                }
+                else if(lua_istable(L, -2))
+                {
+                    const char *value = lua_tostring(L, -2);
+                    LUAU_LOG_F("%s%s => %s", levelStr.c_str(), key, TypeName);
+                    DumpTable(L, -2, Level+1);
                 }
                 else
                 {
                     const char *value = lua_tostring(L, -2);
-                    LUAU_LOG_F("%s => %s\n", key, TypeName);
+                    LUAU_LOG_F("%s%s => %s", levelStr.c_str(), key, TypeName);
                 }
                 // pop value + copy of key, leaving original key
                 lua_pop(L, 2);

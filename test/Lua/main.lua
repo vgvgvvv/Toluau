@@ -14,6 +14,12 @@ function Module.entry()
 	log("hello world")
 end
 
+function Module.testEnum()
+	local Enum = require("FooEnum")
+	log("FooEnum.Bar", Enum.Bar)
+	log("FooEnum.Foo", Enum.Foo)
+end
+
 function Module.testClass(fooClass)
 
 	fooClass.IntMem = 100
@@ -25,13 +31,6 @@ function Module.testClass(fooClass)
 
 	local result = Lib.Add(1, 2);
 	log(result)
-
-	local Enum = require("FooEnum")
-	log("FooEnum.Bar", Enum.Bar)
-	log("FooEnum.Foo", Enum.Foo)
-
-	local InvalidEnum = require("InvalidEnum")
-	log("InvalidEnum.Bar", InvalidEnum.Bar)
 end
 
 function Module.testNew()
