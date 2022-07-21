@@ -1,9 +1,13 @@
 #pragma once
 
+#include "StackAPI.h"
+
 namespace ToLuau
 {
 	struct IArg
 	{
+		virtual ~IArg() = default;
+		
 		virtual int32_t Count() const = 0;
 
 		virtual void PushLua(lua_State *L) const = 0;

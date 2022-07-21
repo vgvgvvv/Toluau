@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "lua.h"
+
 #ifdef TOLUAUUNREAL_API
 #include "CoreMinimal.h"
 #endif
@@ -15,7 +17,9 @@ namespace ToLuau
     struct BaseUserData
     {
     	void* RawPtr = nullptr;
-    	const char* DebugName = nullptr;;
+#if ToLuauDebug
+    	const char* DebugName = "NULL";
+#endif
         virtual ~BaseUserData() = default;
     };
 
@@ -33,10 +37,42 @@ namespace ToLuau
         	if(RealValue != nullptr)
         	{
         		RawPtr = nullptr;
+#if ToLuauDebug
         		DebugName = nullptr;
+#endif
         	}
         }
 
     };
 
+    struct LuaRef
+    {
+		LuaRef(lua_State* L, int32_t Pos)
+		{
+			Ref = lua_ref(L, Pos);
+			OwnerState = L;
+		}
+    	
+    	virtual ~LuaRef()
+		{
+			if(OwnerState)
+			{
+				lua_unref(OwnerState, Ref);
+			}
+		}
+
+    	bool IsValid() const
+    	{
+    		return Ref != LUA_NOREF;
+    	}
+    	
+    	void Push() const
+    	{
+    		lua_getref(OwnerState, Ref);
+    	}
+    	
+    	int32_t Ref;
+    	lua_State* OwnerState;
+    };
+	
 }

@@ -27,7 +27,7 @@ namespace ToLuau
 	{
 	public:
         ILuauState();
-		~ILuauState() = default;
+        virtual ~ILuauState() = default;
 		lua_State* GetState() const { return L; }
 
         virtual ILuauChunkLoader& GetLoader() const = 0;
@@ -45,7 +45,7 @@ namespace ToLuau
 	{
 	public:
 		ToLuauState();
-		~ToLuauState();
+		virtual ~ToLuauState() override;
 
 		ILuauChunkLoader& GetLoader() const override { return *Loader; }
 		IToLuauAPI& GetAPI() const override { return *API; }

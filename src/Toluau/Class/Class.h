@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <utility>
 
 namespace ToLuau
@@ -93,10 +94,10 @@ namespace ToLuau
 	public:
 		Class(
 				int InSize,
-				const Class* InBaseClass,
+				std::function<const Class*()>&& InBaseClass,
 				char const* InName) noexcept
 				: Type(InSize, InName)
-				, BaseClass(InBaseClass)
+				, BaseClassFunc(std::move(InBaseClass))
 		{
 			Defined = true;
 		}
@@ -107,7 +108,7 @@ namespace ToLuau
 		/* --------------------------------------------------------------------- */
 		Class const* GetBaseClass() const noexcept
 		{
-			return BaseClass;
+			return BaseClassFunc();
 		}
 
 		bool IsA(const Class* targetClass) const
@@ -130,7 +131,7 @@ namespace ToLuau
 
 
 	protected:
-		const Class* BaseClass;
+		std::function<const Class*()> BaseClassFunc;
 		bool Defined;
 	};
 

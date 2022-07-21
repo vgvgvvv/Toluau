@@ -23,7 +23,7 @@ namespace ToLuau
 
 	protected:
 		bool GetFuncGlobal(const std::string& LuaFunc, bool* bIsClassFunc) override;
-		void DoPCall(int32_t ArgNum, int32_t RetNum) override;
+		int32_t DoPCall(int32_t ArgNum, int32_t RetNum) override;
 
 	};
 
@@ -101,7 +101,7 @@ namespace ToLuau
 		return false;
 	}
 
-	void ToLuauAPI::DoPCall(int32_t ArgNum, int32_t RetNum)
+	int32_t ToLuauAPI::DoPCall(int32_t ArgNum, int32_t RetNum)
 	{
 		auto L = Owner->GetState();
 
@@ -121,6 +121,7 @@ namespace ToLuau
 			Lua::Error(msg);
 			lua_pop(L, 1);
 		}
+		return RetNum;
 	}
 
 	void ToLuauAPI::CallFunc(const std::string &FuncName)

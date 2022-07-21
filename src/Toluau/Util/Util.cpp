@@ -250,6 +250,30 @@ namespace ToLuau
                     LUAU_LOG_F("%d - %s", i, TypeName);
                     DumpTable(L, -1, 1);
                 }
+            	else if(lua_isuserdata(L, -1)) 
+                {
+            		lua_getmetatable(L, -1); // value mt
+            		if(!lua_istable(L, -1))
+            		{
+            			lua_pop(L, 1);
+            			LUAU_LOG_F("%d - %s", i, TypeName);
+            		}
+                    else
+                    {
+						lua_getfield(L, -1, ".name"); // value mt name
+                    	if(!lua_isstring(L, -1))
+                    	{
+                    		lua_pop(L, 2);
+                    		LUAU_LOG_F("%d - %s", i, TypeName);
+                    	}
+                    	else
+                    	{
+                    		std::string UserDataName = lua_tostring(L, -1);
+                    		LUAU_LOG_F("%d - %s(%s)", i, TypeName, UserDataName.c_str());
+                    		lua_pop(L, 2);
+                    	}
+                    }
+                }
                 else
                 {
                     LUAU_LOG_F("%d - %s", i, TypeName);

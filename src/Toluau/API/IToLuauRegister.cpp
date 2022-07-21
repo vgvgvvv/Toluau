@@ -122,8 +122,12 @@ namespace ToLuau
 #endif
 
         int32_t GetEnumRef(const std::string& EnumName) const override;
+		void SetEnumRef(const std::string& EnumName, int32_t Ref) override;
         int32_t GetStaticLibRef(const std::string& StaticLibName) const override;
+		void SetStaticLibRef(const std::string& StaticLibName, int32_t Ref) override;
         int32_t GetClassMetaRef(const std::string& ClassName) const override;
+		void SetClassMetaRef(const std::string& ClassName, int32_t Ref) override;
+
     private:
 
 		template<int32_t Value>
@@ -807,9 +811,9 @@ namespace ToLuau
 		
 		lua_pushstring(L, "new");
 		lua_pushlightuserdata(L, Class);
-		lua_pushcclosure(L, UEStructNewEvent, (ClassName + "_New").c_str(), 1);
+		lua_pushcclosure(L, UEClassNewEvent, (ClassName + "_New").c_str(), 1);
 		lua_rawset(L, -3);
-		
+
 		lua_pushstring(L, IToLuauAPI::GetMtName(MetatableEvent::Index));
 		lua_pushcfunction(L, UEClassIndexEvent, (ClassName + "_Index").c_str());
 		lua_rawset(L, -3);
@@ -858,6 +862,12 @@ namespace ToLuau
 	{
 		// t k
 		auto type = lua_type(L, 1);
+		
+		auto Obj = StackAPI::Check<UObject*>(L, 1);
+		if(!Obj)
+		{
+			luaL_error(L, "try to index nil uobject");
+		}
 
 		if(type == LUA_TUSERDATA)
 		{
@@ -980,25 +990,33 @@ namespace ToLuau
 
 	int32_t ToLuaRegister::UEClassNewIndexEvent(lua_State* L)
 	{
+		// table key value
 		auto type = lua_type(L, 1);
+
+		auto Obj = StackAPI::Check<UObject*>(L, 1);
+		if(!Obj)
+		{
+			luaL_error(L, "try to index nil uobject");
+		}
 
 		if(type == LUA_TUSERDATA)
 		{
-			lua_getmetatable(L, 1);
+			lua_getmetatable(L, 1); // table key value mt
 			while(lua_istable(L, -1))
 			{
 				lua_pushstring(L, ".set");
-				lua_rawget(L, -2);
+				lua_rawget(L, -2); // table key value mt settable
 
 				if(lua_istable(L, -1))
 				{
-					lua_pushvalue(L, 2);
-					lua_rawget(L, -2);
+					lua_pushvalue(L, 2); // table key value mt settable key
+					lua_rawget(L, -2); // table key value mt settable func
 
 					if(lua_isfunction(L, -1))
 					{
-						lua_pushvalue(L, 1);
-						lua_pushvalue(L, 3);
+						lua_pushvalue(L, 1); // table key value mt settable func table
+						lua_pushvalue(L, 3); // table key value mt settable func table value
+
 						lua_call(L, 2, 0);
 						return 0;
 					}
@@ -1152,7 +1170,7 @@ namespace ToLuau
 				return 0;
 			}
 			std::string Name = StackAPI::Check<std::string>(L, -1);
-			UProperty* Prop = Struct->FindPropertyByName(Name.c_str());
+			FProperty* Prop = Struct->FindPropertyByName(Name.c_str());
 			if(!Prop)
 			{
 				lua_pushnil(L);
@@ -1186,7 +1204,7 @@ namespace ToLuau
 				return 0;
 			}
 			std::string Name = StackAPI::Check<std::string>(L, -2);
-			UProperty* Prop = Struct->FindPropertyByName(Name.c_str());
+			FProperty* Prop = Struct->FindPropertyByName(Name.c_str());
 			if(!Prop)
 			{
 				luaL_errorL(L, "cannot find property %s in %s", Name.c_str(), StringEx::FStringToStdString(Struct->GetName()).c_str());
@@ -1239,6 +1257,11 @@ namespace ToLuau
 		auto Obj = StackAPI::Check<UObject*>(L, -2);
 		auto Name = lua_tostring(L, -1);
 
+		if(!Obj)
+		{
+			return false;
+		}
+		
 		auto Class = Obj->GetClass();
 		auto Function = Class->FindFunctionByName(FName(Name));
 
@@ -1272,8 +1295,15 @@ namespace ToLuau
 		FProperty* Prop = reinterpret_cast<FProperty*>(PropPtr);
 
 		auto Obj = StackAPI::Check<UObject*>(L, -1);
-		
-		StackAPI::UE::PushProperty(L, Prop, Obj);
+
+		if(Obj)
+		{
+			StackAPI::UE::PushProperty(L, Prop, Obj);
+		}
+		else
+		{
+			lua_pushnil(L);
+		}
 		
 		return 1;
 	}
@@ -1293,7 +1323,10 @@ namespace ToLuau
 		
 		FProperty* Prop = reinterpret_cast<FProperty*>(PropPtr);
 		auto Obj = StackAPI::Check<UObject*>(L, -2);
-		StackAPI::UE::CheckProperty(L, Prop, Obj, -1);
+		if(Obj)
+		{
+			StackAPI::UE::CheckProperty(L, Prop, Obj, -1);
+		}
 		
 		return 0;
 	}
@@ -1310,6 +1343,19 @@ namespace ToLuau
         return -1;
     }
 
+	void ToLuaRegister::SetEnumRef(const std::string& EnumName, int32_t Ref)
+	{
+		auto It = EnumRefDict.find(EnumName);
+		if(It != EnumRefDict.end())
+		{
+			LUAU_ERROR_F("enum ref has been registered %s", EnumName.c_str());
+		}
+		else
+		{
+			EnumRefDict.insert(std::make_pair(EnumName, Ref));
+		}
+	}
+
     int32_t ToLuaRegister::GetStaticLibRef(const std::string &StaticLibName) const
     {
         auto It = StaticLibRefDict.find(StaticLibName);
@@ -1319,6 +1365,19 @@ namespace ToLuau
         }
         return -1;
     }
+
+	void ToLuaRegister::SetStaticLibRef(const std::string& StaticLibName, int32_t Ref)
+	{
+		auto It = StaticLibRefDict.find(StaticLibName);
+		if(It != StaticLibRefDict.end())
+		{
+			LUAU_ERROR_F("staticlib ref has been registered %s", StaticLibName.c_str());
+		}
+		else
+		{
+			StaticLibRefDict.insert(std::make_pair(StaticLibName, Ref));
+		}
+	}
 
     int32_t ToLuaRegister::GetClassMetaRef(const std::string &ClassName) const
     {
@@ -1330,6 +1389,20 @@ namespace ToLuau
         return -1;
     }
 
+	void ToLuaRegister::SetClassMetaRef(const std::string& ClassName, int32_t Ref)
+	{
+		auto It = ClassMetaRefDict.find(ClassName);
+		if(It != ClassMetaRefDict.end())
+		{
+			LUAU_ERROR_F("class meta ref has been registered %s", ClassName.c_str());
+		}
+		else
+		{
+			ClassMetaRefDict.insert(std::make_pair(ClassName, Ref));
+		}
+	}
+
+	
     void ToLuaRegister::PushGetTable(lua_State* L)
     {
 		lua_pushstring(L, ".get"); // table ".get"

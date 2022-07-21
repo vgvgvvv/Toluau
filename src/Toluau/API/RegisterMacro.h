@@ -1,5 +1,6 @@
 #pragma once
 #include "IToLuauRegister.h"
+#include "Toluau/ToLuau.h"
 
 #define __STATIC_REGISTER_LUAU_BEGIN(Name) \
 namespace \
@@ -22,8 +23,14 @@ namespace \
 #define LUAU_REG_NEW_FUNC(ClassName, FuncName) \
     Register->RegFunction("new", &ToLuau::LuaCppBinding<decltype(&ClassName::FuncName), &ClassName::FuncName>::LuaCFunction);
 
+#define LUAU_REG_LUA_NEW_FUNC(ClassName, FuncName) \
+    Register->RegFunction("new", &ClassName::FuncName);
+
 #define LUAU_REG_FUNC(ClassName, FuncName) \
     Register->RegFunction(#FuncName, &ToLuau::LuaCppBinding<decltype(&ClassName::FuncName), &ClassName::FuncName>::LuaCFunction);
+
+#define LUAU_REG_LUA_FUNC(ClassName, FuncName) \
+    Register->RegFunction(#FuncName, &ClassName::FuncName);
 
 #define LUAU_REG_VAR(ClassName, VarName) \
      Register->RegVar(#VarName, \
@@ -67,3 +74,7 @@ namespace \
 	__STATIC_REGISTER_LUAU_BEGIN(StructName) \
 	Register->RegUStruct(StructName::StaticStruct()); \
 	__STATIC_REGISTER_LUAU_END(StructName)
+
+#define LUAU_CUSTOM_REG(ClassName, FuncName) \
+    auto L = Register->GetOwner()->GetState(); \
+    ClassName::FuncName(L);

@@ -69,8 +69,11 @@ namespace ToLuau
 #endif
 
         virtual int32_t GetEnumRef(const std::string& EnumName) const = 0;
+		virtual void SetEnumRef(const std::string& EnumName, int32_t Ref) = 0;
         virtual int32_t GetStaticLibRef(const std::string& StaticLibName) const = 0;
+		virtual void SetStaticLibRef(const std::string& StaticLibName, int32_t Ref) = 0;
         virtual int32_t GetClassMetaRef(const std::string& ClassName) const = 0;
+		virtual void SetClassMetaRef(const std::string& ClassName, int32_t Ref) = 0;
 
 	protected:
 		ILuauState* Owner = nullptr;

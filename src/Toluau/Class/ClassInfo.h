@@ -12,7 +12,7 @@ public:\
 private:\
 	static ToLuau::Class& GetSelfLuaClass(){               \
         static ToLuau::Class Instance(sizeof(className), \
-		nullptr, \
+		[](){ return nullptr; }, \
 		#className);                      \
         return Instance;                                \
 	};
@@ -26,7 +26,7 @@ public: \
 private:    \
 	static ToLuau::Class& GetSelfLuaClass(){ \
         static ToLuau::Class Instance( sizeof(className), \
-		baseClassName::StaticLuaClass(), \
+		[](){ return baseClassName::StaticLuaClass(); }, \
 		#className);  \
 		return Instance;\
 	};

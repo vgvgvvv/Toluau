@@ -16,8 +16,24 @@ namespace ToLuau
 {
     namespace StackAPI
     {
+    	int InstanceIndexSelf(lua_State* L)
+    	{
+    		lua_getmetatable(L,1);
+    		auto name = StackAPI::Check<std::string>(L, 2);
+        
+    		lua_getfield(L,-1,name.c_str());
+    		lua_remove(L,-2); // remove mt of ud
+    		return 1;
+    	}
     	
-        int32_t SetClassMetaTable(lua_State *L, std::string& ClassName) // ud
+    	int32_t SetupMetaTableCommon(lua_State* L)
+    	{
+    		lua_pushcfunction(L, InstanceIndexSelf, "InstanceIndexSelf");
+    		lua_setfield(L, -2, "__index");
+    		return 0;
+    	}
+    	
+        int32_t SetClassMetaTable(lua_State *L, std::string& ClassName, lua_CFunction SetupMetaTable) // ud
         {
             auto Owner = ILuauState::GetByRawState(L);
             auto ClassRef = Owner->GetRegister().GetClassMetaRef(ClassName);
@@ -26,6 +42,14 @@ namespace ToLuau
                 lua_getref(L, ClassRef); // ud meta
                 lua_setmetatable(L, -2); // ud
             }
+        	else if(SetupMetaTable != nullptr)
+        	{
+        		lua_newtable(L); // ud table
+        		SetupMetaTable(L);
+        		auto Ref = lua_ref(L, -1);
+        		Owner->GetRegister().SetClassMetaRef(ClassName, Ref);
+        		lua_setmetatable(L, -2); // ud
+        	}
             else
             {
                 luaL_errorL(L, "cannot find class meta ref %s", ClassName.c_str());
@@ -42,7 +66,8 @@ namespace ToLuau
 #endif
 		}
 
-    	
+		
+
 		namespace Int64Detail
 		{
 			int gInt64MT = -1;
@@ -459,35 +484,301 @@ namespace ToLuau
     		template<typename T>
 			int32 PushUProperty(lua_State* L,FProperty* Prop,uint8* Params)
 	        {
-        		auto p=CastField<T>(Prop);
-        		ensure(p);
-        		return StackAPI::Push<typename T::TCppType>(L,static_cast<typename T::TCppType>(p->GetPropertyValue(Params)));
+        		auto P=CastField<T>(Prop);
+        		assert(p);
+        		return StackAPI::Push<typename T::TCppType>(L,static_cast<typename T::TCppType>(P->GetPropertyValue(Params)));
 	        }
 
+        	template<typename T>
+        	int32 CheckUProperty(lua_State* L,FProperty* Prop,uint8* Params, int32 i)
+    		{
+    			auto P = CastField<T>(Prop);
+    			assert(p);
+    			P->SetPropertyValue(Params, StackAPI::Check<typename T::TCppType>(L, i));
+    			return 0;
+    		}
+        	
         	int32 PushEnumProperty(lua_State* L, FProperty* Prop, uint8* Params)
     		{
-    			auto p = CastField<FEnumProperty>(Prop);
-    			ensure(p);
-    			auto p2 = p->GetUnderlyingProperty();
-    			ensure(p2);
-    			int32 IntValue = p2->GetSignedIntPropertyValue(Params);
+    			auto P = CastField<FEnumProperty>(Prop);
+    			assert(p);
+    			auto P2 = P->GetUnderlyingProperty();
+    			ensure(P2);
+    			int32 IntValue = P2->GetSignedIntPropertyValue(Params);
     			return StackAPI::Push<int32>(L, IntValue); 	
     		}
         	
-	        template<typename T>
-			int32 CheckUProperty(lua_State* L,FProperty* Prop,uint8* Params, int32 i)
-	        {
-    			auto p = CastField<T>(Prop);
-    			ensure(p);
-    			p->SetPropertyValue(Params, StackAPI::Check<typename T::TCppType>(L, i));
+        	int32 CheckEnumProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
+    		{
+    			auto P = CastField<FEnumProperty>(Prop);
+    			assert(p);
+    			auto Enum = StackAPI::Check<UEnum*>(L, i);
+    			P->SetEnum(Enum);
+    			return 0;
+    		}
+        	
+        	int32 PushStructProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FStructProperty>(Prop);
+    			assert(P);
+    			UScriptStruct* ScriptStruct = P->Struct;
+    			void* NewStruct = lua_newuserdatatagged(L, sizeof(ScriptStruct->GetStructureSize()), UD_TAG(UEStruct));
+    			ScriptStruct->InitializeStruct(NewStruct);
+    			ScriptStruct->CopyScriptStruct(NewStruct, Params);
+
+    			auto ClassName = StringEx::FStringToStdString(ScriptStruct->GetName());
+    			// set metatable
+    			SetClassMetaTable(L, ClassName);
+    			
+    			return 1;
+    		}
+
+        	int32 CheckStructProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
+    		{
+    			auto P = CastField<FStructProperty>(Prop);
+    			assert(P);
+    			UScriptStruct* ScriptStruct = P->Struct;
+    			if (void* Ptr = lua_touserdatatagged(L, i, UD_TAG(UEStruct)))
+    			{
+    				ScriptStruct->CopyScriptStruct(Params, Ptr);
+    			}
+    			else
+    			{
+    				luaL_typeerror(L, 1, "UEStruct");
+    			}
+    			return 0;
+    		}
+        	
+        	int32 PushClassProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FClassProperty>(Prop);
+    			assert(P);
+    			auto Value = P->GetPropertyValue(Params);
+    			StackAPI::Push(L, Value);
+    			return 1;
+    		}
+
+        	int32 CheckClassProperty(lua_State* L, FProperty* Prop, uint8* Params, int32_t i)
+    		{
+    			auto P = CastField<FClassProperty>(Prop);
+    			assert(P);
+    			auto Obj = StackAPI::Check<UObject*>(L, i);
+    			P->SetPropertyValue(Params, Obj);
+    			return 0;
+    		}
+        	
+        	int32 PushObjectProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FObjectProperty>(Prop);
+    			assert(P);
+    			UObject* Obj = P->GetPropertyValue(Params);
+    			StackAPI::Push(L, Obj);
+    			return 1;
+    		}
+
+        	int32 CheckObjectProperty(lua_State* L, FProperty* Prop, uint8* Params, int32_t i)
+    		{
+    			auto P = CastField<FObjectProperty>(Prop);
+    			assert(P);
+    			auto Obj = StackAPI::Check<UObject*>(L, i);
+    			if(!IsValid(Obj))
+    			{
+    				luaL_errorL(L, "uobject at %d is invalid!!", i);
+    			}
+    			if(Obj->GetClass() != P->PropertyClass)
+    			{
+    				luaL_errorL(L, "uobject at %d is %s instead of %s!!", i,
+    					StringEx::FStringToStdString(Obj->GetClass()->GetName()).c_str(),
+    					StringEx::FStringToStdString(P->PropertyClass->GetName()).c_str());
+    			}
+    			P->SetPropertyValue(Params, Obj);
     			return 0;
     		}
 
-        	// TODO check and push with map and array
+        	int32 PushWeakObjectProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FWeakObjectProperty>(Prop);
+    			assert(P);
+    			auto Value = P->GetPropertyValue(Params);
+    			StackAPI::Push(L, Value);
+    			return 1;
+    		}
+
+        	int32 CheckWeakObjectProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
+    		{
+    			auto P = CastField<FWeakObjectProperty>(Prop);
+    			assert(P);
+    			auto Result = StackAPI::Check<FWeakObjectPtr>(L, i);
+    			P->SetPropertyValue(Params, Result);
+    			return 0;
+    		}
+
+        	int32 PushSoftObjectProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FSoftObjectProperty>(Prop);
+    			assert(P);
+    			FSoftObjectPtr Value = P->GetPropertyValue(Params);
+    			StackAPI::Push(L, Value);
+    			return 1;
+    		}
+
+        	int32 CheckSoftObjectProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
+    		{
+    			auto P = CastField<FSoftObjectProperty>(Prop);
+    			assert(P);
+    			auto Result = StackAPI::Check<FSoftObjectPtr>(L, i);
+    			P->SetPropertyValue(Params, Result);
+    			return 0;
+    		}
+        	
+        	int32 PushArrayProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FArrayProperty>(Prop);
+    			ensure(P);
+    			FScriptArray* Value = P->GetPropertyValuePtr(Params);
+    			return ToLuauArray::Push(L, P->Inner, Value);
+    		}
+
+        	int32 CheckArrayProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
+    		{
+    			auto P = CastField<FArrayProperty>(Prop);
+    			ensure(P);
+    			if (lua_istable(L, i))
+    			{
+    				int ArraySize = lua_objlen(L, i);
+    				if (ArraySize <= 0)
+    				{
+    					return 0;
+    				}
+    				int TableIndex = i;
+    				if (i < 0 && i > LUA_REGISTRYINDEX)
+    				{
+    					TableIndex = i - 1;
+    				}
+    				FScriptArrayHelper ArrayHelper(P, Params);
+    				ArrayHelper.AddValues(ArraySize);
+
+    				int index = 0;
+
+    				lua_pushnil(L);
+    				while (index < ArraySize && lua_next(L, TableIndex) != 0) {
+    					StackAPI::UE::CheckProperty(L, P->Inner, ArrayHelper.GetRawPtr(index++), -1);
+    					lua_pop(L, 1);
+    				}
+    				return 0;
+    			}
+
+    			auto UD = Check<ToLuauArray*>(L, i);
+    			ToLuauArray::Clone((FScriptArray*)Params, P->Inner, UD->Get());
+    			return 0;
+    		}
+        	
+        	int32 PushMapProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FMapProperty>(Prop);
+    			ensure(P);
+    			FScriptMap* v = P->GetPropertyValuePtr(Params);
+    			return ToLuauMap::Push(L, P->KeyProp, P->ValueProp, v);
+    		}
+
+        	int32 CheckMapProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
+    		{
+    			auto P = CastField<FMapProperty>(Prop);
+    			ensure(P);
+
+				if(lua_istable(L, i))
+				{
+					int32 TableIndex = i;
+					if(i < 0 && i > LUA_REGISTRYINDEX)
+					{
+						TableIndex = i -1;
+					}
+
+					FScriptMapHelper MapHelper(P, Params);
+
+					lua_pushnil(L);
+					while (lua_next(L, TableIndex) != 0)
+					{
+						FDefaultConstructedPropertyElement TempKey(P->KeyProp);
+						FDefaultConstructedPropertyElement TempValue(P->ValueProp);
+						auto KeyPtr = TempKey.GetObjAddress();
+						auto ValuePtr = TempValue.GetObjAddress();
+						StackAPI::UE::CheckProperty(L, P->KeyProp, (uint8*)KeyPtr, -2);
+						StackAPI::UE::CheckProperty(L, P->ValueProp, (uint8*)ValuePtr, -1);
+						MapHelper.AddPair(KeyPtr, ValuePtr);
+						lua_pop(L, 1);
+					}
+					return 0;
+				}
+
+				auto UD = StackAPI::Check<ToLuauMap*>(L, i);
+    			ToLuauMap::Clone((FScriptMap*)Params, P->KeyProp, P->ValueProp, UD->Get());
+    			
+    			return 0;
+    		}
+        	
+        	int32 PushDelegateProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FDelegateProperty>(Prop);
+    			ensure(P);
+    			FScriptDelegate* Delegate = P->GetPropertyValuePtr(Params);
+    			return ToLuauDelegate::Push(L, Delegate, P->SignatureFunction, Prop->GetNameCPP());
+    		}
+
+        	int32 CheckDelegateProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
+    		{
+    			auto P = CastField<FDelegateProperty>(Prop);
+    			ensure(P);
+    			auto Obj = StackAPI::Check<UObject*>(L, i);
+    			if(auto LuaDelegate = Cast<UToLuauDelegate>(Obj))
+    			{
+    				LuaDelegate->BindFunction(P->SignatureFunction);
+    			}
+                else
+                {
+	                luaL_typeerrorL(L, i, "UToLuauDelegate");
+                }
+
+    			FScriptDelegate Delegate;
+    			Delegate.BindUFunction(Obj, TEXT("EventTrigger"));
+
+    			P->SetPropertyValue(Params, Delegate);
+    			return 0;
+    		}
+        	
+        	int32 PushMulticastDelegateProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FMulticastDelegateProperty>(Prop);
+    			ensure(P);
+    			FMulticastScriptDelegate* Delegate = const_cast<FMulticastScriptDelegate*>(P->GetMulticastDelegate(Params));
+    			return ToLuauMultiDelegate::Push(L, Delegate, P->SignatureFunction, P->GetNameCPP());
+    		}
+
+        	int32 CheckMulticastDelegateProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
+    		{
+    			return 0;
+    		}
+        	
+        	int32 PushMulticastInlineDelegateProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FMulticastInlineDelegateProperty>(Prop);
+    			ensure(P);
+    			FMulticastScriptDelegate* Delegate = const_cast<FMulticastScriptDelegate*>(P->GetMulticastDelegate(Params));
+    			return ToLuauMultiDelegate::Push(L, Delegate, P->SignatureFunction, P->GetNameCPP());
+    		}
+
+        	int32 PushMulticastSparseDelegateProperty(lua_State* L, FProperty* Prop, uint8* Params)
+    		{
+    			auto P = CastField<FMulticastSparseDelegateProperty>(Prop);
+    			ensure(P);
+    			FMulticastScriptDelegate* Delegate = const_cast<FMulticastScriptDelegate*>(P->GetMulticastDelegate(Params));
+    			return ToLuauMultiDelegate::Push(L, Delegate, P->SignatureFunction, P->GetNameCPP());
+    		}
+
 
 #pragma endregion
 
-	   
+#pragma region Pusher & Checker Functions
         	using PushPropertyFunction = int32 (*)(lua_State* L, FProperty* prop, uint8* parms);
         	using CheckPropertyFunction = int32 (*)(lua_State* L, FProperty* prop, uint8* parms, int32 i);
     	
@@ -527,6 +818,12 @@ namespace ToLuau
         	void RegChecker(FFieldClass* cls, const CheckPropertyFunction Func) {
         		checkerMap.Add(cls, Func);
         	}
+
+        	void RegPusherAndChecker(FFieldClass* Cls, const PushPropertyFunction PushFunc, const CheckPropertyFunction CheckFunc)
+        	{
+        		RegPusher(Cls, PushFunc);
+        		RegChecker(Cls, CheckFunc);
+        	}
     	
         	template<typename T>
 			inline void RegPropertyPusher() {
@@ -538,54 +835,48 @@ namespace ToLuau
         		checkerMap.Add(T::StaticClass(), CheckUProperty<T>);
         	}
 
+        	template<typename T>
+			inline void RegPropertyPusherAndChecker()
+        	{
+        		RegPropertyPusher<T>();
+        		RegPropertyChecker<T>();
+        	}
+
+#pragma endregion
+        	
         	void InitProperty()
         	{
-#pragma region Pusher
-        		RegPropertyPusher<FInt8Property>();
-        		RegPropertyPusher<FInt16Property>();
-        		RegPropertyPusher<FUInt16Property>();        		
-        		RegPropertyPusher<FIntProperty>();
-        		RegPropertyPusher<FUInt32Property>();
-        		RegPropertyPusher<FInt64Property>();
-        		RegPropertyPusher<FUInt64Property>();
+#pragma region Pusher & Checker Reg
+        		RegPropertyPusherAndChecker<FInt8Property>();
+        		RegPropertyPusherAndChecker<FInt16Property>();
+        		RegPropertyPusherAndChecker<FUInt16Property>();
+        		RegPropertyPusherAndChecker<FIntProperty>();
+        		RegPropertyPusherAndChecker<FUInt32Property>();
+        		RegPropertyPusherAndChecker<FInt64Property>();
+        		RegPropertyPusherAndChecker<FUInt64Property>();
+        		RegPropertyPusherAndChecker<FByteProperty>();
+        		RegPropertyPusherAndChecker<FFloatProperty>();
+        		RegPropertyPusherAndChecker<FDoubleProperty>();
+        		RegPropertyPusherAndChecker<FTextProperty>();
+        		RegPropertyPusherAndChecker<FStrProperty>();
+        		RegPropertyPusherAndChecker<FNameProperty>();
 
-        		RegPropertyPusher<FByteProperty>();
-        		RegPropertyPusher<FFloatProperty>();
-        		RegPropertyPusher<FDoubleProperty>();
-        		RegPropertyPusher<FTextProperty>();
-        		RegPropertyPusher<FStrProperty>();
-        		RegPropertyPusher<FNameProperty>();
+        		RegPusherAndChecker(FEnumProperty::StaticClass(), &PushEnumProperty, &CheckEnumProperty);
+        		RegPusherAndChecker(FDelegateProperty::StaticClass(), &PushDelegateProperty, &CheckDelegateProperty);
+        		RegPusher(FMulticastDelegateProperty::StaticClass(), &PushMulticastDelegateProperty);
+				RegPusher(FMulticastInlineDelegateProperty::StaticClass(), &PushMulticastInlineDelegateProperty);
+				RegPusher(FMulticastSparseDelegateProperty::StaticClass(), &PushMulticastSparseDelegateProperty);
+				RegPusherAndChecker(FArrayProperty::StaticClass(), &PushArrayProperty, &CheckArrayProperty);
+				RegPusherAndChecker(FMapProperty::StaticClass(), &PushMapProperty, &CheckMapProperty);
+
+        		RegPusherAndChecker(FStructProperty::StaticClass(), &PushStructProperty, &CheckStructProperty);
+        		RegPusherAndChecker(FClassProperty::StaticClass(), &PushClassProperty, &CheckClassProperty);
+        		RegPusherAndChecker(FObjectProperty::StaticClass(), &PushObjectProperty, &CheckObjectProperty);
+        		RegPusherAndChecker(FWeakObjectProperty::StaticClass(), &PushWeakObjectProperty, &CheckWeakObjectProperty);
+        		// RegPusherAndChecker(FLazyObjectProperty::StaticClass(), &PushLazyObjectProperty, &CheckLazyObjectProperty);
+        		RegPusherAndChecker(FSoftObjectProperty::StaticClass(), &PushSoftObjectProperty, &CheckSoftObjectProperty);
+
 #pragma endregion 
-        		
-#pragma region Checkers
-        		RegPropertyChecker<FInt8Property>();
-        		RegPropertyChecker<FInt16Property>();
-				RegPropertyChecker<FUInt16Property>();        		
-        		RegPropertyChecker<FIntProperty>();
-        		RegPropertyChecker<FUInt32Property>();
-        		RegPropertyChecker<FInt64Property>();
-        		RegPropertyChecker<FUInt64Property>();
-
-        		RegPropertyChecker<FByteProperty>();
-        		RegPropertyChecker<FFloatProperty>();
-        		RegPropertyChecker<FDoubleProperty>();
-        		RegPropertyChecker<FTextProperty>();
-        		RegPropertyChecker<FStrProperty>();
-        		RegPropertyChecker<FNameProperty>();
-#pragma endregion
-        		
-        		/// TODO Propertys
-        		/// UDelegateProperty
-        		/// UMulticastDelegateProperty
-        		/// UMulticastInlineDelegateProperty
-        		/// UMulticastSparseDelegateProperty
-        		/// UObjectProperty
-        		/// UArrayProperty
-        		/// UMapProperty
-        		/// UStructProperty
-        		/// UEnumProperty
-        		/// UClassProperty
-        		/// UWeakObjectProperty
 
         	}
 
@@ -635,10 +926,10 @@ namespace ToLuau
 	        {
         		static const FName NAME_LatentInfo = TEXT("LatentInfo");
 
-        		int FillParamFromState(lua_State* L, FProperty* Prop, uint8* Params,int i)
+        		int32 FillParamFromState(lua_State* L, FProperty* Prop, uint8* Params,int32 Pos)
         		{
         			uint64 PropFlag = Prop->GetPropertyFlags();
-        			if(PropFlag & CPF_OutParm && lua_isnil(L, i))
+        			if(PropFlag & CPF_OutParm && lua_isnil(L, Pos))
         			{
         				return Prop->GetSize();
         			}
@@ -646,13 +937,13 @@ namespace ToLuau
         			auto Checker = GetChecker(Prop);
         			if(Checker)
         			{
-        				Checker(L, Prop, Params, i);
+        				Checker(L, Prop, Params, Pos);
         				return Prop->GetSize();
         			}
         			else
         			{
         				FString TypeName = Prop->GetClass()->GetName();
-        				luaL_error(L, "unsupport param type %s at %d", TCHAR_TO_UTF8(*TypeName), i);
+        				luaL_error(L, "unsupport param type %s at %d", TCHAR_TO_UTF8(*TypeName), Pos);
         				return 0;
         			}
         		}
@@ -661,7 +952,7 @@ namespace ToLuau
         		{
         			return (PropFlag&CPF_OutParm) && !(PropFlag&CPF_ConstParm) && !(PropFlag&CPF_BlueprintReadOnly);
         		};
-        		
+
         		void FillParam(lua_State* L,int Pos ,UFunction* Func,uint8* Params)
         		{
         			auto FuncFlag = Func->FunctionFlags;
@@ -682,9 +973,10 @@ namespace ToLuau
         					continue;
         				}
 
-        				check(Prop->GetFName() == NAME_LatentInfo);
+        				check(Prop->GetFName() != NAME_LatentInfo);
 
-        				
+        				FillParamFromState(L, Prop, Params + Prop->GetOffset_ForInternal(), Pos);
+        				Pos++;
         			}
         		}
         		

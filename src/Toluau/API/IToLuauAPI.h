@@ -5,7 +5,6 @@
 #include <functional>
 
 #include "lua.h"
-#include "StackAPI.h"
 #include "Arg.h"
 
 #ifdef TOLUAUUNREAL_API
@@ -313,7 +312,7 @@ namespace ToLuau
 
 		virtual bool GetFuncGlobal(const std::string& LuaFunc, bool* bIsClassFunc) = 0;
 
-		virtual void DoPCall(int32_t ArgNum, int32_t RetNum) = 0;
+		virtual int32_t DoPCall(int32_t ArgNum, int32_t RetNum) = 0;
 
 		#pragma endregion
 
