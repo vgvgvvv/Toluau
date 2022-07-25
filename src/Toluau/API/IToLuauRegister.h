@@ -12,11 +12,7 @@
 #include "Toluau/API/CppBinding.h"
 #include "Toluau/Class/Class.h"
 
-#ifdef TOLUAUUNREAL_API
-#include "Toluau/ToLuau_API.h"
-#else
-#include "ToLuau_API.h"
-#endif
+#include "Toluau/ToLuauDefine.h"
 
 
 struct lua_State;

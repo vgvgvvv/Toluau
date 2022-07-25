@@ -1,10 +1,7 @@
 ﻿#pragma once
 
-#ifdef TOLUAUUNREAL_API
-#include "Toluau/ToLuau_API.h"
-#else
-#include "ToLuau_API.h"
-#endif
+#include "Toluau/ToLuauDefine.h"
+
 #ifdef TOLUAUUNREAL_API
 #include "lua.h"
 #include "Toluau/API/StackAPI.h"
