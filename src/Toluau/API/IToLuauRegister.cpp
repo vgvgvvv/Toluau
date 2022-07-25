@@ -5,6 +5,7 @@
 #include "IToLuauRegister.h"
 #include <memory>
 #include <map>
+#include <vector>
 
 #include "lua.h"
 #include "lualib.h"
@@ -13,6 +14,7 @@
 #include "IToLuauAPI.h"
 #include "Toluau/Util/Util.h"
 #include "ToLuauLib.h"
+#include "MetaData.h"
 
 namespace ToLuau
 {
@@ -153,7 +155,9 @@ namespace ToLuau
         std::map<std::string, int32_t> ClassMetaRefDict;
 
 		std::string CurrentModuleName;
-	};
+
+        LuaMetaData MetaData;
+    };
 
 	std::shared_ptr<IToLuauRegister> IToLuauRegister::Create(ILuauState *InOwner)
 	{
