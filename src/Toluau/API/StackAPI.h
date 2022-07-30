@@ -911,7 +911,7 @@ namespace ToLuau
 						return 1;
 					}
 					
-					std::shared_ptr Temp;
+					std::shared_ptr<void> Temp;
 					void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(StdSharedPtr));
 					memcpy(p, &Temp, sizeof(Temp));
 

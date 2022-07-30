@@ -379,7 +379,8 @@ namespace ToLuau
 		case Type::Bool:
 			return Vars[0].Bool ? 1 : 0;
 		default:
-			return NAN;
+			assert(false);
+			return 0.0f;
 		}
 	}
 
@@ -395,7 +396,8 @@ namespace ToLuau
 		case Type::Bool:
 			return Vars[0].Bool ? 1 : 0;
 		default:
-			return NAN;
+			assert(false);
+			return 0.0;
 		}
 		return 0;
 	}

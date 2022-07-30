@@ -17,20 +17,20 @@ namespace ToLuau
 		Enum
     };
 
-    class  FunctionMetaData
+    struct FunctionMetaData
     {
         std::map<std::string, std::string> ParamTypes;
         std::string ReturnType;
     };
 
-    class  FunctionGroupMetaData
+    struct FunctionGroupMetaData
     {
         bool bIsStatic;
         std::string Name;
         std::vector<std::shared_ptr<FunctionMetaData>> Group;
     };
 
-    class  FieldMetaData
+    struct FieldMetaData
     {
         bool bIsStatic;
         std::string Name;
@@ -55,6 +55,8 @@ namespace ToLuau
 		}
 		virtual ScopeType Type() const override { return ScopeType::Enum; }
 
+        void RegVar(const std::shared_ptr<FieldMetaData> &InField) override;
+
 	private:
 		std::string Name;
 		std::map<std::string, std::shared_ptr<FieldMetaData>> Fields;
@@ -68,7 +70,10 @@ namespace ToLuau
 	    {
 			Name = InName;
 		}
-        virtual ScopeType Type() const override { return ScopeType::Class; }
+        ScopeType Type() const override { return ScopeType::Class; }
+
+		void RegVar(const std::shared_ptr<FieldMetaData> &InField) override;
+		void RegFunction(const std::shared_ptr<FunctionGroupMetaData> &InField) override;
 
     private:
         std::string Name;
@@ -85,7 +90,10 @@ namespace ToLuau
 	    {
 			Name = InName;
 		}
-        virtual ScopeType Type() const override { return ScopeType::Namespace; }
+        ScopeType Type() const override { return ScopeType::Namespace; }
+
+		void RegVar(const std::shared_ptr<FieldMetaData> &InField) override;
+		void RegFunction(const std::shared_ptr<FunctionGroupMetaData> &InField) override;
 
     private:
         std::string Name;
@@ -110,6 +118,7 @@ namespace ToLuau
 	    EnumMetaData& PushEnum(const std::string& Name);
 
         void RegVar(bool IsStatic, const std::string& TypeName, const std::string& VarName);
+        void RegFunction(bool IsStatic, const std::string& FunctionName, const FunctionGroupMetaData& FunctionInfo);
 
         void Pop();
     private:

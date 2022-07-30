@@ -93,8 +93,17 @@ namespace ToLuau
 	{
 		auto& Scope = ScopeStack.back();
 
-		std::shared_ptr<FieldMetaData>
+		std::shared_ptr<FieldMetaData> Field = std::make_shared<FieldMetaData>();
+        Field->bIsStatic = IsStatic;
+        Field->Name = VarName;
+        Field->Type = TypeName;
+
+        Scope->RegVar(Field);
 	}
+
+    void LuaMetaData::RegFunction(bool IsStatic, const std::string& FunctionName, const FunctionGroupMetaData& FunctionInfo) {
+
+    }
 
 	void LuaMetaData::Pop()
 	{
@@ -102,7 +111,51 @@ namespace ToLuau
 		ScopeStack.pop_back();
 	}
 
+	void ClassMetaData::RegVar(const std::shared_ptr<FieldMetaData>& InField)
+	{
+		auto It = Fields.find(InField->Name);
+		if(It == Fields.end())
+		{
+			Fields.insert({InField->Name, InField});
+		}
+		else
+		{
+			LUAU_ERROR_F("%s has registered field %s", Name.c_str(), InField->Name.c_str());
+		}
+	}
 
+	void ClassMetaData::RegFunction(const std::shared_ptr<FunctionGroupMetaData>& InField)
+	{
 
+	}
 
+	void NamespaceMetaData::RegVar(const std::shared_ptr<FieldMetaData>& InField)
+	{
+		auto It = Fields.find(InField->Name);
+		if(It == Fields.end())
+		{
+			Fields.insert({InField->Name, InField});
+		}
+		else
+		{
+			LUAU_ERROR_F("%s has registered field %s", Name.c_str(), InField->Name.c_str());
+		}
+	}
+	void NamespaceMetaData::RegFunction(const std::shared_ptr<FunctionGroupMetaData>& InField)
+	{
+
+	}
+
+	void EnumMetaData::RegVar(const std::shared_ptr<FieldMetaData> &InField)
+	{
+		auto It = Fields.find(InField->Name);
+		if(It == Fields.end())
+		{
+			Fields.insert({InField->Name, InField});
+		}
+		else
+		{
+			LUAU_ERROR_F("%s has registered field %s", Name.c_str(), InField->Name.c_str());
+		}
+	}
 }
