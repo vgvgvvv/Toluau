@@ -73,7 +73,7 @@ namespace ToLuau
         ScopeType Type() const override { return ScopeType::Class; }
 
 		void RegVar(const std::shared_ptr<FieldMetaData> &InField) override;
-		void RegFunction(const std::shared_ptr<FunctionGroupMetaData> &InField) override;
+		void RegFunction(const std::shared_ptr<FunctionGroupMetaData> &InFunction) override;
 
     private:
         std::string Name;
@@ -93,7 +93,7 @@ namespace ToLuau
         ScopeType Type() const override { return ScopeType::Namespace; }
 
 		void RegVar(const std::shared_ptr<FieldMetaData> &InField) override;
-		void RegFunction(const std::shared_ptr<FunctionGroupMetaData> &InField) override;
+		void RegFunction(const std::shared_ptr<FunctionGroupMetaData> &InFunction) override;
 
     private:
         std::string Name;
@@ -104,13 +104,12 @@ namespace ToLuau
 	    std::map<std::string, std::shared_ptr<FieldMetaData>> Fields;
     };
 
-    class LuaMetaData
+    class ToLuau_API LuaMetaData
     {
     public:
 	    LuaMetaData()
 	    {
 			GlobalMetaData = std::make_shared<NamespaceMetaData>("");
-		    ScopeStack.push_back(GlobalMetaData);
 		}
 
         NamespaceMetaData& PushNamespace(const std::string& Name);

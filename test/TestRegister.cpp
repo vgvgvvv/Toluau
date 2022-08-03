@@ -10,6 +10,7 @@
 #include "Toluau/API/RegisterMacro.h"
 
 LUAU_BEGIN_CLASS(FooClass);
+
 LUAU_REG_NEW_FUNC(FooClass, create);
 LUAU_REG_FUNC(FooClass, PrintIntMem);
 LUAU_REG_FUNC(FooClass, SayHello)

@@ -11,8 +11,8 @@
 
 #include "Toluau/API/CppBinding.h"
 #include "Toluau/Class/Class.h"
-
 #include "Toluau/ToLuauDefine.h"
+#include "MetaData.h"
 
 
 struct lua_State;
@@ -56,6 +56,8 @@ namespace ToLuau
 
 		virtual void RegFunction(const std::string& FuncName, LuaFunc Func) = 0;
 		virtual void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) = 0;
+
+		virtual LuaMetaData& GetMetaData() = 0;
 
 #ifdef TOLUAUUNREAL_API
 		virtual void RegUClass(UClass* Class) = 0;

@@ -100,6 +100,11 @@ namespace ToLuau
 
 		void RegFunction(const std::string& FuncName, LuaFunc Func) override;
 		void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) override;
+
+		LuaMetaData& GetMetaData() override
+		{
+			return MetaData;
+		}
 		
 #ifdef TOLUAUUNREAL_API
 		void RegUClass(UClass* Class) override;

@@ -8,8 +8,18 @@
 namespace ToLuau
 {
 
-	NamespaceMetaData& ToLuau::LuaMetaData::PushNamespace(const std::string &Name)
+	NamespaceMetaData& LuaMetaData::PushNamespace(const std::string &Name)
 	{
+		if(Name.empty())
+		{
+			if(!ScopeStack.empty())
+			{
+				LUAU_ERROR("cannot push global namespace into not empty scope stack");
+				return *GlobalMetaData;
+			}
+			ScopeStack.push_back(GlobalMetaData);
+			return *GlobalMetaData;
+		}
 		auto& Scope = ScopeStack.back();
 		if(Scope->Type() == ScopeType::Namespace)
 		{
@@ -124,9 +134,17 @@ namespace ToLuau
 		}
 	}
 
-	void ClassMetaData::RegFunction(const std::shared_ptr<FunctionGroupMetaData>& InField)
+	void ClassMetaData::RegFunction(const std::shared_ptr<FunctionGroupMetaData>& InFunction)
 	{
-
+		auto It = Functions.find(InFunction->Name);
+		if(It == Functions.end())
+		{
+			Functions.insert({ InFunction->Name, InFunction});
+		}
+		else
+		{
+			LUAU_ERROR_F("%s has registered field %s", Name.c_str(), InFunction->Name.c_str());
+		}
 	}
 
 	void NamespaceMetaData::RegVar(const std::shared_ptr<FieldMetaData>& InField)
@@ -141,9 +159,17 @@ namespace ToLuau
 			LUAU_ERROR_F("%s has registered field %s", Name.c_str(), InField->Name.c_str());
 		}
 	}
-	void NamespaceMetaData::RegFunction(const std::shared_ptr<FunctionGroupMetaData>& InField)
+	void NamespaceMetaData::RegFunction(const std::shared_ptr<FunctionGroupMetaData>& InFunction)
 	{
-
+		auto It = Functions.find(InFunction->Name);
+		if(It == Functions.end())
+		{
+			Functions.insert({ InFunction->Name, InFunction});
+		}
+		else
+		{
+			LUAU_ERROR_F("%s has registered field %s", Name.c_str(), InFunction->Name.c_str());
+		}
 	}
 
 	void EnumMetaData::RegVar(const std::shared_ptr<FieldMetaData> &InField)

@@ -18,7 +18,23 @@ namespace \
 }
 #define LUAU_BEGIN_CLASS(ClassName) \
     __STATIC_REGISTER_LUAU_BEGIN(ClassName) \
+    Register->GetMetaData().PushClass(#ClassName, ""); \
     Register->BeginClass(ClassName::StaticLuaClass());
+
+#define LUAU_BEGIN_CLASS_WITH_SUPER(ClassName, SuperClass) \
+    __STATIC_REGISTER_LUAU_BEGIN(ClassName, SuperClass)  \
+	Register->GetMetaData().PushClass(#ClassName, #SuperClass); \
+	Register->BeginClass(ClassName::StaticLuaClass(), SuperClass::StaticLuaClass());
+
+#define LUAU_BEGIN_CLASS_BY_NAME(ClassRegName, ClassNameStr) \
+ 	__STATIC_REGISTER_LUAU_BEGIN(ClassRegName) \
+    Register->GetMetaData().PushClass(ClassNameStr, ""); \
+    Register->BeginClass(ClassNameStr);
+
+#define LUAU_BEGIN_CLASS_WITH_SUPER_BY_NAME(ClassRegName, ClassNameStr, SuperClassNameStr) \
+ 	__STATIC_REGISTER_LUAU_BEGIN(ClassRegName) \
+    Register->GetMetaData().PushClass(ClassNameStr, SuperClassNameStr); \
+    Register->BeginClass(ClassNameStr, SuperClassNameStr);
 
 #define LUAU_REG_NEW_FUNC(ClassName, FuncName) \
     Register->RegFunction("new", &ToLuau::LuaCppBinding<decltype(&ClassName::FuncName), &ClassName::FuncName>::LuaCFunction);
@@ -38,27 +54,32 @@ namespace \
         &ToLuau::LuaCppBinding<decltype(&ClassName::Get##VarName), &ClassName::Get##VarName>::LuaCFunction);
 
 #define LUAU_END_CLASS(ClassName) \
-    Register->EndClass();\
-    __STATIC_REGISTER_LUAU_END(ClassName)
+    Register->EndClass();         \
+    Register->GetMetaData().Pop(); \
+	__STATIC_REGISTER_LUAU_END(ClassName)
 
 #define LUAU_BEGIN_ENUM(EnumName) \
     __STATIC_REGISTER_LUAU_BEGIN(EnumName) \
-    Register->BeginEnum(#EnumName);
+    Register->GetMetaData().PushEnum(#EnumName); \
+	Register->BeginEnum(#EnumName);
 
 #define LUAU_REG_CLASS_ENUM_VAR(EnumName, Name) \
     Register->RegVar(#Name, nullptr, [](lua_State* L){ return ToLuau::StackAPI::Push(L, EnumName::Name); });
 
 #define LUAU_END_ENUM(EnumName) \
     Register->EndEnum();        \
-    __STATIC_REGISTER_LUAU_END(EnumName)
+    Register->GetMetaData().Pop(); \
+	__STATIC_REGISTER_LUAU_END(EnumName)
 
 #define LUAU_BEGIN_STATIC_LIB(LibName) \
     __STATIC_REGISTER_LUAU_BEGIN(LibName) \
-    Register->BeginStaticLib(#LibName);
+    Register->GetMetaData().PushNamespace(#LibName); \
+	Register->BeginStaticLib(#LibName);
 
 #define LUAU_END_STATIC_LIB(LibName) \
     Register->EndStaticLib(); \
-    __STATIC_REGISTER_LUAU_END(LibName)
+    Register->GetMetaData().Pop(); \
+	__STATIC_REGISTER_LUAU_END(LibName)
 
 #define LUAU_REG_UCLASS(ClassName) \
 	__STATIC_REGISTER_LUAU_BEGIN(ClassName) \
