@@ -70,7 +70,7 @@ namespace ToLuau
 		if(ShouldFree)
 		{
 			Clear();
-			assert(Array);
+			TOLUAU_ASSERT(Array != nullptr);
 			SafeDelete(Array);
 		}
 
@@ -96,6 +96,7 @@ namespace ToLuau
 
 	int32 ToLuauArray::SetupMetaTable(lua_State* L)
 	{
+		StackAPI::SetupMetaTableCommon(L);
 		
 		lua_pushcfunction(L, &ToLuauArray::Pairs, "__pairs");
 		lua_setfield(L, -2, "__pairs");
@@ -179,6 +180,14 @@ namespace ToLuau
 		return 0;
 	}
 
+	int32 ToLuauArray::Add(lua_State* L)
+	{
+		auto UD = StackAPI::Check<TSharedPtr<ToLuauArray>>(L, 1);
+		FProperty* Ele = UD->Inner;
+		StackAPI::UE::CheckProperty(L, Ele, UD->Add(), 3);
+		return StackAPI::Push(L, UD->Num());
+	}
+
 	int32 ToLuauArray::Insert(lua_State* L)
 	{
 		auto UD = StackAPI::Check<TSharedPtr<ToLuauArray>>(L, 1);
@@ -193,7 +202,7 @@ namespace ToLuau
 		return StackAPI::Push(L, UD->Num());
 	}
 
-	int32 ToLuauArray::Remove(lua_State* L)
+	int32 ToLuauArray::RemoveAt(lua_State* L)
 	{
 		auto UD = StackAPI::Check<TSharedPtr<ToLuauArray>>(L, 1);
 		int32 Index = StackAPI::Check<int32>(L, 2);
@@ -206,7 +215,7 @@ namespace ToLuau
 		return 0;
 	}
 
-	int32 ToLuauArray::Clear(lua_State* L)
+	int32 ToLuauArray::Empty(lua_State* L)
 	{
 		auto UD = StackAPI::Check<ToLuauArray*>(L, 1);
 		UD->Clear();
@@ -306,12 +315,13 @@ namespace ToLuau
 	LUAU_CUSTOM_REG(ToLuauArray, SetupMetaTable)
 	LUAU_REG_LUA_NEW_FUNC(ToLuauArray, Ctor);
 	LUAU_REG_LUA_FUNC(ToLuauArray, Pairs);
-	LUAU_REG_LUA_FUNC(ToLuauArray, Num);
-	LUAU_REG_LUA_FUNC(ToLuauArray, Get);
-	LUAU_REG_LUA_FUNC(ToLuauArray, Set);
-	LUAU_REG_LUA_FUNC(ToLuauArray, Insert);
-	LUAU_REG_LUA_FUNC(ToLuauArray, Remove);
-	LUAU_REG_LUA_FUNC(ToLuauArray, Clear);
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, Num, int32(ToLuauArray::*)());
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, Get, LuaAnyType(ToLuauArray::*)(int32));
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, Set, void(ToLuauArray::*)(int32, LuaAnyType));
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, Add, void(ToLuauArray::*)(LuaAnyType));
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, Insert, void(ToLuauArray::*)(int32, LuaAnyType));
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, RemoveAt, void(ToLuauArray::*)(int32));
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, Empty, void(ToLuauArray::*)());
 	LUAU_END_CLASS(ToLuauArray)
 
 	LUAU_BEGIN_CLASS(ToLuauArrayEnumerator)

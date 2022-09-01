@@ -43,6 +43,7 @@ namespace ToLuau
 
 	ToLuauState::~ToLuauState()
 	{
+    	AllLuauState.erase(L);
 		lua_close(L);
 	}
 

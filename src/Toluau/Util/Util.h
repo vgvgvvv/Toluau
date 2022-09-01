@@ -12,6 +12,7 @@
 
 #include "Toluau/ToLuauDefine.h"
 
+
 #ifdef TOLUAUUNREAL_API
 #include "CoreMinimal.h"
 #endif
@@ -31,7 +32,7 @@ namespace ToLuau
         std::string Format( const std::string& format, Args ... args )
         {
             int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
-            if( size_s <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
+            if( size_s <= 0 ){ TOLUAU_ASSERT(false); }
             auto size = static_cast<size_t>( size_s );
             std::unique_ptr<char[]> buf( new char[ size ] );
             std::snprintf( buf.get(), size, format.c_str(), args ... );
@@ -50,12 +51,28 @@ namespace ToLuau
         ToLuau_API std::string Combine(const std::string& p1, const std::string& p2);
 	}
 
-#ifndef TOLUAUUNREAL_API
 	namespace FileEx
 	{
+#ifndef TOLUAUUNREAL_API
         ToLuau_API std::optional<std::string> ReadFile(const std::string& name);
-	}
+#else
+		ToLuau_API std::optional<std::string> ReadFile(const std::string& name);
 #endif
+
+		ToLuau_API void WriteFile(const std::string& Path, const std::string& Content);
+		
+		ToLuau_API bool FileExist(const std::string& Path);
+
+		ToLuau_API void RemoveFile(const std::string& Path);
+
+		ToLuau_API void CreateDir(const std::string& Path);
+		
+		ToLuau_API bool DirExist(const std::string& Path);
+		
+		ToLuau_API void RemoveDir(const std::string& Path);
+		
+	}
+
 
 	namespace Lua
 	{

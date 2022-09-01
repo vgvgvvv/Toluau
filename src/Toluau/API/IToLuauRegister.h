@@ -8,11 +8,9 @@
 #include <functional>
 
 #include "lua.h"
-
-#include "Toluau/API/CppBinding.h"
+#include "MetaData.h"
 #include "Toluau/Class/Class.h"
 #include "Toluau/ToLuauDefine.h"
-#include "MetaData.h"
 
 
 struct lua_State;
@@ -42,10 +40,10 @@ namespace ToLuau
 		virtual void EndModule() = 0;
 
 		void BeginClass(const std::string& ClassName) { BeginClass(ClassName, ""); }
-		virtual void BeginClass(const std::string& ClassName, const std::string& SuperClassName) = 0;
+		virtual void BeginClass(const std::string& ClassName, const std::string& SuperClassName, bool Append = true) = 0;
 		
 		void BeginClass(const Class* LuaClass) { BeginClass(LuaClass, nullptr); };
-		virtual void BeginClass(const Class* LuaClass, const Class* SuperLuaClass) = 0;
+		virtual void BeginClass(const Class* LuaClass, const Class* SuperLuaClass, bool Append = true) = 0;
 		virtual void EndClass() = 0;
 
 		virtual void BeginEnum(const std::string& EnumName) = 0;
@@ -57,12 +55,17 @@ namespace ToLuau
 		virtual void RegFunction(const std::string& FuncName, LuaFunc Func) = 0;
 		virtual void RegVar(const std::string& VarName, LuaFunc Setter, LuaFunc Getter) = 0;
 
-		virtual LuaMetaData& GetMetaData() = 0;
+		virtual ILuaMetaData& GetMetaData() = 0;
 
 #ifdef TOLUAUUNREAL_API
-		virtual void RegUClass(UClass* Class) = 0;
+		virtual void RegUClass(UClass* Class, bool Append = true) = 0;
+		virtual void BeginUEClass(UClass* Class, bool Append = true) = 0;
+		virtual void EndUEClass() = 0;
+		
 		virtual void RegUEnum(UEnum* Enum) = 0;
-		virtual void RegUStruct(UScriptStruct* Struct) = 0;
+		virtual void RegUStruct(UScriptStruct* Struct, bool Append = true) = 0;
+		virtual void BeginUEStruct(UScriptStruct* Struct, bool Append = true) = 0;
+		virtual void EndUEStruct() = 0;
 	
 #endif
 

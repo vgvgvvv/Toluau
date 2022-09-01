@@ -13,10 +13,11 @@ namespace ToLuau
 {
 	class ToLuau_API ToLuauVar
 	{
+		DEFINE_LUA_CLASS(ToLuauVar)
 	public:
 		enum class Type
 		{
-			Nil,
+			None,
 			Number,
 			Bool,
 			String,
@@ -68,7 +69,7 @@ namespace ToLuau
 			Clone(Other);
 		}
 		
-		void operator=(ToLuauVar&& Other) noexcept
+		void operator=(ToLuauVar&& Other)
 		{
 			Clear();
 			Move(std::move(Other));
@@ -114,7 +115,7 @@ namespace ToLuau
 		template<typename T>
 		T* ToUserData() const
 		{
-			assert(Vars.size() == 1 && Vars[0].LuaType == Type::UserData);
+			TOLUAU_ASSERT(Vars.size() == 1 && Vars[0].LuaType == Type::UserData);
 			auto Ref = Vars[0].Ref;
 			lua_pushvalue(Ref->OwnerState, Ref->Ref);
 			auto Result = StackAPI::Check<T*>(Ref->OwnerState, -1);
@@ -137,7 +138,7 @@ namespace ToLuau
 		template<typename T>
 		void SetAt(T Value, int32_t Index = -1)
 		{
-            assert(IsTable());
+			TOLUAU_ASSERT(IsTable());
 			Push();
 			if(Index < 0)
 			{
@@ -152,7 +153,7 @@ namespace ToLuau
 		template<typename R, typename T>
 		R GetFromTable(T Key, bool bRawGet = false)
 		{
-            assert(IsTable());
+			TOLUAU_ASSERT(IsTable());
 			StackAPI::AutoStack A(OwnerState);
 			Push();
 			StackAPI::Push(OwnerState, Key);
@@ -170,13 +171,13 @@ namespace ToLuau
 		template<typename R, typename T>
 		void GetFromTable(T Key, R& Result, bool bRawGet = false)
 		{
-			Result = GetFromTable(Key, bRawGet);
+			Result = GetFromTable<R, T>(Key, bRawGet);
 		}
 
 		template<typename K, typename V>
 		void SetToTable(K Key, V Value)
 		{
-			assert(IsTable());
+			TOLUAU_ASSERT(IsTable());
 			Push();
 			StackAPI::Push(OwnerState, Key);
 			StackAPI::Push(OwnerState, Value);
@@ -193,7 +194,7 @@ namespace ToLuau
 
 		ToLuauVar Return(int32_t RetN) const
 		{
-			assert(RetN >= 0);
+			TOLUAU_ASSERT(RetN >= 0);
 			if(RetN == 0)
 			{
 				return ToLuauVar();
@@ -208,30 +209,73 @@ namespace ToLuau
 		template<typename ...ARGS>
 		ToLuauVar Call(ARGS&&... args) const
 		{
-			if(!IsValid())
+#if UE_EDITOR
+			try
 			{
-				LUAU_ERROR("toluau var is not valid");
-				return ToLuauVar();
-			}
-			if(!IsFunction())
-			{
-				LUAU_ERROR("toluau var is not a function, cannot call");
-				return ToLuauVar();
-			}
+#endif
+				if(!IsValid())
+				{
+					LUAU_ERROR("toluau var is not valid");
+					return ToLuauVar();
+				}
+				if(!IsFunction())
+				{
+					LUAU_ERROR("toluau var is not a function, cannot call");
+					return ToLuauVar();
+				}
 
-			auto N = StackAPI::PushArgs(OwnerState, std::forward<ARGS>(args)...);
-			auto RetN = DoCall(N);
-			auto Ret = Return(RetN);
-			lua_pop(OwnerState, RetN);
-			return Ret;
+				auto N = StackAPI::PushArgs(OwnerState, std::forward<ARGS>(args)...);
+				auto RetN = DoCall(N);
+				auto Ret = Return(RetN);
+				lua_pop(OwnerState, RetN);
+				return Ret;
+#if UE_EDITOR
+			}
+			catch (std::exception e)
+			{
+				LUAU_ERROR_F("Call LuaVar Throw ", e.what());
+				return ToLuauVar();
+			}
+#endif
+		}
+		
+		template<typename ...ARGS>
+		ToLuauVar CallWithRef(const ARGS&... args) const
+		{
+#if UE_EDITOR
+			try
+			{
+#endif
+				if(!IsValid())
+				{
+					LUAU_ERROR("toluau var is not valid");
+					return ToLuauVar();
+				}
+				if(!IsFunction())
+				{
+					LUAU_ERROR("toluau var is not a function, cannot call");
+					return ToLuauVar();
+				}
+
+				auto N = StackAPI::PushArgsWithRef(OwnerState, args...);
+				auto RetN = DoCall(N);
+				auto Ret = Return(RetN);
+				lua_pop(OwnerState, RetN);
+				return Ret;
+#if UE_EDITOR
+			}
+			catch (std::exception e)
+			{
+				LUAU_ERROR_F("Call LuaVar Throw ", e.what());
+				return ToLuauVar();
+			}
+#endif
 		}
 
 #ifdef TOLUAUUNREAL_API
-
 		int PushArgByParams(FProperty* Prop, uint8* Parms) const;
 		
 		bool CallByUFunction(UFunction* UFunc, uint8* Params, FOutParmRec *OutParams = nullptr, RESULT_DECL = nullptr, bool bNeedSelf = false);
-
 #endif
 
 #pragma endregion
@@ -253,21 +297,78 @@ namespace ToLuau
 			};
 			Type LuaType;
 			Var():
-				Ptr(nullptr),
-				LuaType(Type::Nil)
+				Ref(nullptr),
+				LuaType(Type::None)
 			{
 			}
 
 			Var(const Var& Other)
-				: Ptr(Other.Ptr),
+				: Ref(Other.Ref),
 				  LuaType(Other.LuaType)
 			{
+				if (this == &Other)
+					return;
+				LuaType = Other.LuaType;
+
+				switch (LuaType)
+				{
+					case Type::None:
+						break;
+					case Type::Number:
+						Num = Other.Num;
+					break;
+					case Type::Bool:
+						Bool = Other.Bool;
+					break;
+					case Type::String:
+						Str = Other.Str;
+					break;
+					case Type::Function:
+					case Type::UserData:
+					case Type::Table:
+						Ref = Other.Ref;
+					break;
+					case Type::LightUserData:
+						Ptr = Other.Ptr;
+					break;
+					case Type::Tuple:
+						break;
+					default: ;
+				}
 			}
 
 			Var(Var&& Other) noexcept
-				: Ptr(Other.Ptr),
-				  LuaType(Other.LuaType)
+				: LuaType(Other.LuaType)
 			{
+				if (this == &Other)
+					return;
+				LuaType = Other.LuaType;
+
+				switch (LuaType)
+				{
+					case Type::None:
+						break;
+					case Type::Number:
+						Num = Other.Num;
+						break;
+					case Type::Bool:
+						Bool = Other.Bool;
+						break;
+					case Type::String:
+						Str = std::move(Other.Str);
+						break;
+					case Type::Function:
+					case Type::UserData:
+					case Type::Table:
+						Ref = std::move(Other.Ref);
+						break;
+					case Type::LightUserData:
+						Ptr = Other.Ptr;
+						break;
+					case Type::Tuple:
+						break;
+					default: ;
+				}
 			}
 
 			Var& operator=(const Var& Other)
@@ -334,5 +435,27 @@ namespace ToLuau
 		lua_State* OwnerState = nullptr;
 	};
 
+	namespace StackAPI
+	{
+		namespace __DETAIL__
+		{
+			template<>
+			struct StackOperatorWrapper<ToLuauVar, void>
+			{
+				static int32_t Push(lua_State* L, const ToLuauVar& Value)
+				{
+					return Value.Push();
+				}
+
+				static ToLuauVar Check(lua_State* L, int32_t Index)
+				{
+					ToLuauVar Var(L, Index);
+					return Var;
+				}
+			};
+			template<> struct BuildInPushValue<ToLuauVar> { static constexpr bool Value = true; };
+			
+		}
+	}
 }
 

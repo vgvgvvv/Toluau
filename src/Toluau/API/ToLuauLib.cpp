@@ -5,6 +5,7 @@
 #include "ToLuauLib.h"
 #include "Toluau/ToLuau.h"
 #include "ILuauChunkLoader.h"
+#include "IToLuauRegister.h"
 #include "Toluau/Util/Util.h"
 
 namespace ToLuau
@@ -77,6 +78,60 @@ namespace ToLuau
             State->GetLoader().Require(Name);
 			return 1;
 		}
+#ifdef TOLUAUUNREAL_API
+		static UClass* FindClass(const TCHAR* ClassName)
+		{
+			check(ClassName);
+
+			UObject* ClassPackage = ANY_PACKAGE;
+
+			if (UClass* Result = FindObject<UClass>(ClassPackage, ClassName))
+			{
+				return Result;
+			}
+
+			if (UObjectRedirector* RenamedClassRedirector = FindObject<UObjectRedirector>(ClassPackage, ClassName))
+			{
+				return CastChecked<UClass>(RenamedClassRedirector->DestinationObject);
+			}
+
+			return nullptr;
+		}
+		
+		static int GetUClass(lua_State* L)
+		{
+			auto State = ILuauState::GetByRawState(L);
+			if(!State)
+			{
+				lua_pushnil(L);
+				return 1;
+			}
+			if(!lua_isstring(L, -1))
+			{
+				lua_pushnil(L);
+				return 1;
+			}
+			auto Name = lua_tostring(L, -1);
+			FString ClassName = ANSI_TO_TCHAR(Name);
+			auto Class = FindClass(*ClassName);
+			if(!Class)
+			{
+				ClassName.RemoveAt(0);
+				Class = FindClass(*ClassName);
+				if(!Class)
+				{
+					lua_pushnil(L);
+					return 1;
+				}
+			}
+			auto& Register = State->GetRegister();
+			Register.BeginModule("");
+			Register.RegUClass(Class, false);
+			Register.EndModule();
+			State->GetLoader().Require(Name);
+			return 1;
+		}
+#endif
 
 		static int DumpTable(lua_State* L)
 		{
@@ -93,6 +148,9 @@ namespace ToLuau
 				{"log", Log},
 				{"logError", Error},
 				{"require", Require},
+#ifdef TOLUAUUNREAL_API
+				{"uclass", GetUClass},
+#endif
 				{"dumpTable", DumpTable},
                 {NULL, NULL},
 		};

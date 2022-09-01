@@ -1,4 +1,7 @@
 #pragma once
+#ifdef TOLUAUUNREAL_API
+#include "UObject/StrongObjectPtr.h"
+#endif
 
 namespace ToLuau
 {
@@ -84,4 +87,117 @@ namespace ToLuau
 		>
 	{
 	};
+
+// SFINAE test
+	template <typename T>
+	class HasStaticLuaClass
+	{
+		typedef char one;
+		struct two { char x[2]; };
+
+		template <typename C>
+		static one test( decltype(&C::StaticLuaClass) ) ;
+		template <typename C>
+		static two test(...);
+
+	public:
+		enum { Value = sizeof(test<T>(0)) == sizeof(char) };
+	};
+
+#if LUAU_SUPPORT_HOYO_CLASS
+	template <typename T>
+	class HasStaticHoYoClass
+	{
+		typedef char one;
+		struct two { char x[2]; };
+
+		template <typename C>
+		static one test( decltype(&C::StaticHoYoClass) ) ;
+		template <typename C>
+		static two test(...);
+
+	public:
+		enum { Value = sizeof(test<T>(0)) == sizeof(char) };
+	};
+#endif
+
+#ifdef TOLUAUUNREAL_API
+	// SFINAE test
+	template <typename T>
+	class HasStaticClass
+	{
+		typedef char one;
+		struct two { char x[2]; };
+
+		template <typename C>
+		static one test( decltype(&C::StaticClass) ) ;
+		template <typename C>
+		static two test(...);
+
+	public:
+		enum { Value = sizeof(test<T>(0)) == sizeof(char) };
+	};
+
+	// SFINAE test
+	template <typename T>
+	class HasStaticStruct
+	{
+		typedef char one;
+		struct two { char x[2]; };
+
+		template <typename C>
+		static one test( decltype(&C::StaticStruct) ) ;
+		template <typename C>
+		static two test(...);
+
+	public:
+		enum { Value = sizeof(test<T>(0)) == sizeof(char) };
+	};
+#endif
+
+	template<size_t I = 0, typename... Tp, typename F>
+	void ForEachApply(std::tuple<Tp...>& t, F &&f) {
+		f(std::get<I>(t));
+		if constexpr(I+1 != sizeof...(Tp)) {
+			ForEachApply<I+1>(t, std::forward<F>(f));
+		}
+	}
+	
+	template<typename T>
+	struct RawClass
+	{
+		using Type = T;
+	};
+
+	template<typename T>
+	struct RawClass<const T>;
+
+	template<typename T>
+	struct RawClass<T&>;
+
+	template<typename T>
+	struct RawClass<T*>;
+	
+	template<typename T>
+	struct RawClass<const T>
+	{
+		using Type = typename RawClass<T>::Type;
+	};
+	
+	template<typename T>
+	struct RawClass<T&>
+	{
+		using Type = typename RawClass<T>::Type;
+	};
+
+	template<typename T>
+	struct RawClass<T*>
+	{
+		using Type = typename RawClass<T>::Type;
+	};
+
+	template<typename T>
+	using RawClass_T = typename RawClass<T>::Type;
+	
+	
 }

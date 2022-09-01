@@ -2,6 +2,7 @@
 
 #include "StackAPI.h"
 #include "Toluau/Util/Template.h"
+#include "Toluau/Containers/ToLuauVar.h"
 
 // reference the way of function binding from slua unreal
 // https://github.com/Tencent/sluaunreal/blob/master/Plugins/slua_unreal/Source/slua_unreal/Public/LuaCppBinding.h
@@ -9,9 +10,9 @@
 namespace ToLuau
 {
 
+	template<typename T, typename = void>
 	struct ArgOperator
 	{
-		template<typename T>
 		static T ReadArg(lua_State* L, int Pos)
 		{
 			return StackAPI::Check<T>(L, Pos);
@@ -48,7 +49,7 @@ namespace ToLuau
 			// (not include obj ptr if it's a member function)
 			static TRet Invoke(lua_State* L, void* Ptr)
 			{
-				return TargetFunc(L, Ptr, ArgOperator::ReadArg<typename remove_cr<Args>::type>(L, Index + Offset)...);
+				return TargetFunc(L, Ptr, ArgOperator<typename remove_cr<Args>::type>::ReadArg(L, Index + Offset)...);
 			}
 		};
 
@@ -74,12 +75,81 @@ namespace ToLuau
 		{
 			using I = MakeIntList<sizeof...(Args)>;
 			TRet Ret = Functor<I>::Invoke(L, Ptr);
+			if constexpr (std::is_same<RawClass_T<TRet>, TRet>::value)
+			{
+				return StackAPI::PushValue(L, Ret);
+			}
+			else if constexpr (std::is_pointer<TRet>::value)
+			{
+				if(Ret == nullptr)
+				{
+					return StackAPI::Push(L, nullptr); 
+				}
+				return StackAPI::Push(L, Ret);
+			}
+			else if constexpr (std::is_reference<TRet>::value)
+			{
+				if(*Ret == nullptr)
+				{
+					return StackAPI::Push(L, nullptr); 
+				}
+				return StackAPI::Push(L, Ret);
+			}
+			else
+			{
+				return StackAPI::Push(L, Ret);
+			}
+		}
+
+	};
+
+	// invoke with args and return
+	template<typename TRet, typename... Args,
+			TRet& (*TargetFunc)(lua_State* L, void*, Args...), int Offset>
+	struct FunctionBind<TRet&(*)(lua_State* L, void*, Args...), TargetFunc, Offset>
+	{
+		template<class X>
+		struct Functor;
+
+		template<int32_t... Index>
+		struct Functor<IntList<Index...>>
+		{
+			// index is int-list based 0, so should plus Offset to get first arg
+			// (not include obj ptr if it's a member function)
+			static TRet& Invoke(lua_State* L, void* Ptr)
+			{
+				return TargetFunc(L, Ptr, ArgOperator<typename remove_cr<Args>::type>::ReadArg(L, Index + Offset)...);
+			}
+		};
+
+		template<typename VT, bool Value = std::is_pointer<TRet>::value>
+		struct ReturnPointer
+		{
+			constexpr static void* GetValue(VT& t)
+			{
+				return (void*)t;
+			}
+		};
+
+		template<typename VT>
+		struct ReturnPointer<VT, false>
+		{
+			constexpr static void* GetValue(VT& t)
+			{
+				return (void*)(&t);
+			}
+		};
+
+		static int Invoke(lua_State* L, void* Ptr)
+		{
+			using I = MakeIntList<sizeof...(Args)>;
+			TRet& Ret = Functor<I>::Invoke(L, Ptr);
 			void* V = ReturnPointer<TRet>::GetValue(Ret);
 			if(V == nullptr)
 			{
 				return StackAPI::Push(L, nullptr);
 			}
-			return StackAPI::Push(L, Ret);
+			return StackAPI::Push<TRet*>(L, &Ret);
 		}
 
 	};
@@ -98,7 +168,7 @@ namespace ToLuau
 			// (not include obj ptr if it's a member function)
 			static void Invoke(lua_State* L, void* Ptr)
 			{
-				TargetFunc(L, Ptr, ArgOperator::ReadArg<typename remove_cr<Args>::type>(L, Index + Offset)...);
+				TargetFunc(L, Ptr, ArgOperator<typename remove_cr<Args>::type>::ReadArg(L, Index + Offset)...);
 			}
 		};
 
@@ -253,12 +323,12 @@ namespace ToLuau
 		static StdFunctionType MakeStdFunction(lua_State* L, int32_t Pos)
 		{
 			luaL_checktype(L, Pos, LUA_TFUNCTION);
-			ToLuauVar Func(L, Pos);
-			if(Func.IsValid() && Func.IsFunction())
+			ToLuauVar LocalFunc(L, Pos);
+			if(LocalFunc.IsValid() && LocalFunc.IsFunction())
 			{
 				return [=](ArgTypes&& ... Args) -> ReturnType
 				{
-					ToLuauVar Result = Func.Call(std::forward<ArgTypes>(Args)...);
+					ToLuauVar Result = LocalFunc.Call(std::forward<ArgTypes>(Args)...);
 					return Result.Get<ReturnType>();
 				};
 			}
@@ -272,12 +342,12 @@ namespace ToLuau
 		static TFunctionType MakeTFunction(lua_State* L, int32_t Pos)
 		{
 			luaL_checktype(L, Pos, LUA_TFUNCTION);
-			ToLuauVar Func(L, Pos);
-			if(Func.IsValid() && Func.IsFunction())
+			ToLuauVar LocalFunc(L, Pos);
+			if(LocalFunc.IsValid() && LocalFunc.IsFunction())
 			{
 				return [=](ArgTypes&& ... Args) -> ReturnType
 				{
-					ToLuauVar Result = Func.Call(std::forward<ArgTypes>(Args)...);
+					ToLuauVar Result = LocalFunc.Call(std::forward<ArgTypes>(Args)...);
 					return Result.Get<ReturnType>();
 				};
 			}

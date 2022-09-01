@@ -85,7 +85,7 @@ namespace ToLuau
 		if(ShouldFree)
 		{
 			Clear();
-			assert(Map);
+			TOLUAU_ASSERT(Map);
 			SafeDelete(Map);
 		}
 		KeyProp = ValueProp = nullptr;
@@ -116,7 +116,9 @@ namespace ToLuau
 
 	int32 ToLuauMap::SetupMetaTable(lua_State* L)
 	{
-		lua_pushcfunction(L, &ToLuauArray::Pairs, "__pairs");
+		StackAPI::SetupMetaTableCommon(L);
+		
+		lua_pushcfunction(L, &ToLuauMap::Pairs, "__pairs");
 		lua_setfield(L, -2, "__pairs");
 		
 		return 0;
@@ -165,7 +167,7 @@ namespace ToLuau
 		return 1;
 	}
 
-	int32 ToLuauMap::Add(lua_State* L)
+	int32 ToLuauMap::Set(lua_State* L)
 	{
 		auto UD = StackAPI::Check<TSharedPtr<ToLuauMap>>(L, 1);
 		check(UD);
@@ -179,7 +181,7 @@ namespace ToLuau
 		return 0;
 	}
 
-	int32 ToLuauMap::Remove(lua_State* L)
+	int32 ToLuauMap::RemoveAt(lua_State* L)
 	{
 		auto UD = StackAPI::Check<TSharedPtr<ToLuauMap>>(L, 1);
 		check(UD);
@@ -189,7 +191,7 @@ namespace ToLuau
 		return StackAPI::Push(L, UD->RemovePair(KeyPtr));
 	}
 
-	int32 ToLuauMap::Clear(lua_State* L)
+	int32 ToLuauMap::Empty(lua_State* L)
 	{
 		auto UD = StackAPI::Check<TSharedPtr<ToLuauMap>>(L, 1);
 		check(UD);
@@ -364,11 +366,11 @@ namespace ToLuau
 	LUAU_BEGIN_CLASS(ToLuauMap)
 	LUAU_CUSTOM_REG(ToLuauMap, SetupMetaTable);
 	LUAU_REG_LUA_NEW_FUNC(ToLuauMap, Ctor);
-	LUAU_REG_LUA_FUNC(ToLuauMap, Num);
-	LUAU_REG_LUA_FUNC(ToLuauMap, Get);
-	LUAU_REG_LUA_FUNC(ToLuauMap, Add);
-	LUAU_REG_LUA_FUNC(ToLuauMap, Remove);
-	LUAU_REG_LUA_FUNC(ToLuauMap, Clear);
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, Num, int32(ToLuauMap::*)());
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, Get, LuaAnyType(ToLuauMap::*)(LuaAnyType));
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, Set, void(ToLuauMap::*)(LuaAnyType, LuaAnyType));
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, RemoveAt, void(ToLuauMap::*)(LuaAnyType));
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, Empty, void(ToLuauMap::*)());
 	LUAU_REG_LUA_FUNC(ToLuauMap, Pairs);
 	LUAU_END_CLASS(ToLuauMap)
 

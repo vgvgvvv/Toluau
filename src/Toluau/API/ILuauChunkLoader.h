@@ -5,9 +5,11 @@
 #include <optional>
 #include <functional>
 
+#include "luacode.h"
 #include "Toluau/ToLuauDefine.h"
 
 #include "Luau/Compiler.h"
+#include "Toluau/Util/Util.h"
 
 namespace ToLuau
 {
@@ -43,8 +45,11 @@ namespace ToLuau
 
 		static std::shared_ptr<ILuauChunkLoader> Create(ILuauState* Owner);
 
+#if ToLuauDebug
+		virtual bool Require(const std::string& Path, bool ForceReload = true) const = 0;
+#else
 		virtual bool Require(const std::string& Path, bool ForceReload = false) const = 0;
-
+#endif
 		virtual bool RequireFromFile(const std::string& Path, const std::string& FileName, bool ForceReload) const = 0;
 
 		const std::vector<std::string>& GetLoadPaths() const;
@@ -57,13 +62,47 @@ namespace ToLuau
 
 		void RemoveLoadPath(const std::string& Path);
 
+#ifdef TOLUAUUNREAL_API
+
+#define TO_STD(Str) StringEx::FStringToStdString(Str)
+
+#if ToLuauDebug
+		bool RequireF(const FString& Path, bool ForceReload = true) const
+		{
+			return Require(TO_STD(Path), ForceReload);
+		}
+#else
+		bool RequireF(const FString& Path, bool ForceReload = false) const
+		{
+			return Require(TO_STD(Path), ForceReload);
+		}
+#endif
+
+		bool RequireFromFileF(const FString& Path, const FString& FileName, bool ForceReload) const
+		{
+			return RequireFromFile(TO_STD(Path), TO_STD(FileName), ForceReload);
+		}
+
+		void AddLoadPathF(const FString& Path)
+		{
+			AddLoadPath(TO_STD(Path));
+		}
+
+		void RemoveLoadPathF(const FString& Path)
+		{
+			RemoveLoadPath(TO_STD(Path));
+		}
+
+#undef TO_STD
+
+#endif
 
 
 	protected:
 		std::vector<std::string> LoadPaths;
 		std::vector<LoaderPtr> Loaders;
 		ILuauState* Owner = nullptr;
-		Luau::CompileOptions CompileOptions = {};
+		lua_CompileOptions CompileOptions = {};
 
 #ifdef TOLUAUUNREAL_API
 		TOptional<std::function<std::string(const std::string&)>> DefaultLoadFileFunc;

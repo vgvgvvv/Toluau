@@ -17,14 +17,17 @@
 #include "UserData.h"
 #include "Toluau/Util/Template.h"
 #include "Toluau/Util/Util.h"
+#include "Toluau/Class/ClassName.h"
 
 #include "Toluau/ToLuauDefine.h"
 
-
 #ifdef TOLUAUUNREAL_API
 #include "UObject/StrongObjectPtr.h"
-#include "CoreMinimal.h"
 #include "UObject/Object.h"
+#endif
+
+#if LUAU_SUPPORT_HOYO_CLASS
+#include "FlyweightClass/Class.h"
 #endif
 
 #define UD_TAG(Tag) static_cast<int32_t>(UserDataType::Tag)
@@ -53,6 +56,7 @@ namespace ToLuau
 			Int64 = 1,
 			UInt64,
 			RawPtr,
+			RawValue,
 			StdSharedPtr,
 			StdWeakPtr,
 
@@ -79,6 +83,36 @@ namespace ToLuau
 		template<typename T>
 		using LuaUEObjWeakPtr = TWeakObjectPtr<T>;
 #endif
+		
+#if LUAU_SUPPORT_HOYO_CLASS
+		namespace HoYoClass
+		{
+			using PushFunc = TFunction<int32_t(lua_State*, void*)>;
+			using CheckFunc = TFunction<void*(lua_State*, int32_t)>;
+			
+			extern ToLuau_API TMap<FHoYoClass, PushFunc> HoYoClassRegisterPushFuncMap;
+			extern ToLuau_API TMap<FHoYoClass, CheckFunc> HoYoClassRegisterCheckFuncMap;
+
+			template<typename T>
+			struct HoYoClassStackAPIRegister
+			{
+				HoYoClassStackAPIRegister(PushFunc CustomPushFunc, CheckFunc CustomCheckFunc)
+				{
+					HoYoClassRegisterPushFuncMap.Add(T::StaticHoYoClass(), CustomPushFunc);
+					HoYoClassRegisterCheckFuncMap.Add(T::StaticHoYoClass(), CustomCheckFunc);
+				}
+			};
+
+#define LUAU_REG_CUSTOM_HOYO_CLASS_PUSHER_CHECKER(TypeName, Pusher, Checker) \
+		namespace \
+		{\
+			static ToLuau::StackAPI::HoYoClass::PushFunc TypeName##PusherFunc = Pusher; \
+			static ToLuau::StackAPI::HoYoClass::CheckFunc TypeName##CheckerFunc = Checker; \
+			static ToLuau::StackAPI::HoYoClass::HoYoClassStackAPIRegister<TypeName> TypeName##Register(TypeName##PusherFunc, TypeName##CheckerFunc); \
+		}
+			
+		}
+#endif
 
 		void InitStackAPI();
 
@@ -86,163 +120,42 @@ namespace ToLuau
 		
 		ToLuau_API int32_t SetClassMetaTable(lua_State* L, std::string& ClassName, lua_CFunction SetupMetaTable = nullptr);
 
+		ToLuau_API bool HasMetaTable(lua_State* L, std::string& ClassName);
+
+#ifdef TOLUAUUNREAL_API
+		ToLuau_API bool RegClass(lua_State* L, UClass* Class);
+		ToLuau_API bool RegStruct(lua_State* L, UScriptStruct* Struct);
+#endif
+		
 		namespace Int64Detail
 		{
-			extern int gInt64MT;
+			extern ToLuau_API int gInt64MT;
 		}
 
 		namespace UInt64Detail
 		{
-			extern int gUInt64MT; 
+			extern ToLuau_API int gUInt64MT; 
 		}
 		
-		int32_t RegisterInt64(lua_State* L);
-		int32_t RegisterUInt64(lua_State* L);
+		ToLuau_API int32_t RegisterInt64(lua_State* L);
+		ToLuau_API int32_t RegisterUInt64(lua_State* L);
 
 		#pragma region push & check
 
 		namespace __DETAIL__
 		{
-			// SFINAE test
-			template <typename T>
-			class HasStaticLuaClass
-			{
-				typedef char one;
-				struct two { char x[2]; };
-
-				template <typename C>
-				static one test( decltype(&C::StaticLuaClass) ) ;
-				template <typename C>
-				static two test(...);
-
-			public:
-				enum { Value = sizeof(test<T>(0)) == sizeof(char) };
-			};
-
-#ifdef TOLUAUUNREAL_API
-			// SFINAE test
-			template <typename T>
-			class HasStaticClass
-			{
-				typedef char one;
-				struct two { char x[2]; };
-
-				template <typename C>
-				static one test( decltype(&C::StaticClass) ) ;
-				template <typename C>
-				static two test(...);
-
-			public:
-				enum { Value = sizeof(test<T>(0)) == sizeof(char) };
-			};
-
-			// SFINAE test
-			template <typename T>
-			class HasStaticStruct
-			{
-				typedef char one;
-				struct two { char x[2]; };
-
-				template <typename C>
-				static one test( decltype(&C::StaticStruct) ) ;
-				template <typename C>
-				static two test(...);
-
-			public:
-				enum { Value = sizeof(test<T>(0)) == sizeof(char) };
-			};
-#endif
-			template<typename T>
-			static std::string GetClassName(void* Obj);
-			
-			template<typename T, typename = void>
-			struct GetClassNameWrapper
-			{
-				static std::string GetName(void* Obj)
-				{
-					assert(false);
-					return "";
-				}
-			};
-
-			template<typename T>
-			struct GetClassNameWrapper<T, typename std::enable_if<HasStaticLuaClass<T>::Value>::type>
-			{
-				static std::string GetName(void* Obj)
-				{
-					return static_cast<T*>(Obj)->GetLuaClass()->Name();
-				}
-			};
-
-#ifdef TOLUAUUNREAL_API
-			template<typename T>
-			struct GetClassNameWrapper<T, typename std::enable_if<HasStaticClass<T>::Value>::type>
-			{
-				static std::string GetName(void* Obj)
-				{
-					return StringEx::FStringToStdString(static_cast<T*>(Obj)->GetClass()->GetName());
-				}
-			};
-			
-			template<typename T>
-			struct GetClassNameWrapper<T, typename std::enable_if<HasStaticStruct<T>::Value && !HasStaticLuaClass<T>::Value>::type>
-			{
-				static std::string GetName(void* Obj)
-				{
-					return StringEx::FStringToStdString(T::StaticStruct()->GetName());
-				}
-			};
-
-			// make generic
-			template<class R, class ...ARGS>
-				struct MakeGenericTypeName {
-				static void Value(std::string& output, const char* delimiter) {
-					MakeGenericTypeName<R>::Value(output, delimiter);
-					MakeGenericTypeName<ARGS...>::Value(output, delimiter);
-				}
-			};
-
-			template<class R>
-			struct MakeGenericTypeName<R>
-			{
-				static void Value(std::string& output, const char* delimiter)
-				{
-					output += (GetClassName<typename remove_cr<R>::type>());
-					output += delimiter;
-				}
-			};
-			
-			template<typename R, typename ...ARGS>
-			struct GetClassNameWrapper<TDelegate<R, ARGS...>>
-			{
-				static std::string GetName(void* Obj)
-				{
-					std::string Result;
-					Result += "TBaseDelegate<";
-					Result += MakeGenericTypeName<R, ARGS...>(Result, ",");
-					Result += ">";
-					return Result;
-				}
-			};
-
-#endif
-
-			template<typename T>
-			static std::string GetClassName(void* Obj)
-			{
-				return GetClassNameWrapper<T>::GetName(Obj);
-			}
 			
 			template<typename T, typename = void>
 			struct StackOperatorWrapper;
 
+			template<typename T, typename = void> struct BuildInPushValue { static constexpr bool Value = false; };
+
 			template<>
-			struct StackOperatorWrapper<int64_t, void>
+			struct StackOperatorWrapper<luau_int64, void>
 			{
-			
-				static int32_t Push(lua_State* L, int64_t Value)
+				static int32_t Push(lua_State* L, luau_int64& Value)
 				{
-					void* p = lua_newuserdatatagged(L, sizeof(int64_t), UD_TAG(Int64));
+					void* p = lua_newuserdatatagged(L, sizeof(luau_int64), UD_TAG(Int64));
 			
 					lua_getref(L, Int64Detail::gInt64MT);
 					if(lua_isnil(L, -1))
@@ -259,28 +172,29 @@ namespace ToLuau
 					
 					lua_setmetatable(L, -2);
 			
-					*static_cast<int64_t*>(p) = Value;
+					*static_cast<luau_int64*>(p) = Value;
 					return 1;
 				}
 			
-				static int64_t Check(lua_State* L, int32_t pos)
+				static luau_int64 Check(lua_State* L, int32_t pos)
 				{
 					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(Int64)))
-						return *static_cast<int64_t*>(p);
+						return *static_cast<luau_int64*>(p);
 			
 					if (lua_isnumber(L, pos))
 						return lua_tointeger(L, pos);
 			
-					luaL_typeerror(L, 1, "int64");
+					luaL_typeerror(L, pos, "int64");
 				}
 			};
+			template<> struct BuildInPushValue<luau_int64> { static constexpr bool Value = true; };
 
 			template<>
-			struct StackOperatorWrapper<uint64_t, void>
+			struct StackOperatorWrapper<luau_uint64, void>
 			{
-				static int32_t Push(lua_State* L, uint64_t Value)
+				static int32_t Push(lua_State* L, luau_uint64& Value)
 				{
-					void* p = lua_newuserdatatagged(L, sizeof(uint64_t), UD_TAG(UInt64));
+					void* p = lua_newuserdatatagged(L, sizeof(luau_uint64), UD_TAG(UInt64));
 			
 					lua_getref(L, UInt64Detail::gUInt64MT);
 					if(lua_isnil(L, -1))
@@ -297,26 +211,27 @@ namespace ToLuau
 					
 					lua_setmetatable(L, -2);
 			
-					*static_cast<uint64_t*>(p) = Value;
+					*static_cast<luau_uint64*>(p) = Value;
 					return 1;
 				}
 			
-				static uint64_t Check(lua_State* L, int32_t pos)
+				static luau_uint64 Check(lua_State* L, int32_t pos)
 				{
 					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UInt64)))
-						return *static_cast<uint64_t*>(p);
+						return *static_cast<luau_uint64*>(p);
 			
 					if (lua_isnumber(L, pos))
 						return lua_tointeger(L, pos);
 			
-					luaL_typeerror(L, 1, "uint64");
+					luaL_typeerror(L, pos, "uint64");
 				}
 			};
+			template<> struct BuildInPushValue<luau_uint64> { static constexpr bool Value = true; };
 			
 			template<>
 			struct StackOperatorWrapper<int32_t, void>
 			{
-				static int32_t Push(lua_State* L, int32_t Value)
+				static int32_t Push(lua_State* L, int32_t& Value)
 				{
 					lua_pushinteger(L, static_cast<int32_t>(Value));
 					return 1;
@@ -327,11 +242,12 @@ namespace ToLuau
 					return static_cast<int32_t>(luaL_checkinteger(L, pos));
 				}
 			};
+			template<> struct BuildInPushValue<int32_t> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<int16_t , void>
 			{
-				static int32_t Push(lua_State* L, int16_t Value)
+				static int32_t Push(lua_State* L, int16_t& Value)
 				{
 					lua_pushnumber(L, static_cast<int32_t>(Value));
 					return 1;
@@ -342,11 +258,12 @@ namespace ToLuau
 					return static_cast<int16_t>(luaL_checkinteger(L, pos));
 				}
 			};
+			template<> struct BuildInPushValue<int16_t> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<int8_t, void>
 			{
-				static int32_t Push(lua_State* L, int8_t Value)
+				static int32_t Push(lua_State* L, int8_t& Value)
 				{
 					lua_pushnumber(L, static_cast<int32_t>(Value));
 					return 1;
@@ -357,11 +274,12 @@ namespace ToLuau
 					return static_cast<int8_t>(luaL_checkinteger(L, pos));
 				}
 			};
+			template<> struct BuildInPushValue<int8_t> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<uint32_t, void>
 			{
-				static int32_t Push(lua_State* L, uint32_t Value)
+				static int32_t Push(lua_State* L, uint32_t& Value)
 				{
 					lua_pushunsigned(L, static_cast<uint32_t>(Value));
 					return 1;
@@ -372,11 +290,12 @@ namespace ToLuau
 					return static_cast<uint32_t>(luaL_checkunsigned(L, Pos));
 				}
 			};
+			template<> struct BuildInPushValue<uint32_t> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<uint16_t, void>
 			{
-				static int32_t Push(lua_State* L, uint16_t Value)
+				static int32_t Push(lua_State* L, uint16_t& Value)
 				{
 					lua_pushunsigned(L, static_cast<uint32_t>(Value));
 					return 1;
@@ -387,11 +306,12 @@ namespace ToLuau
 					return static_cast<uint16_t>(luaL_checkunsigned(L, Pos));
 				}
 			};
+			template<> struct BuildInPushValue<uint16_t> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<uint8_t, void>
 			{
-				static int32_t Push(lua_State* L, uint8_t Value)
+				static int32_t Push(lua_State* L, uint8_t& Value)
 				{
 					lua_pushunsigned(L, static_cast<uint32_t>(Value));
 					return 1;
@@ -402,11 +322,12 @@ namespace ToLuau
 					return static_cast<uint8_t>(luaL_checkunsigned(L, Pos));
 				}
 			};
+			template<> struct BuildInPushValue<uint8_t> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<bool, void>
 			{
-				static int32_t Push(lua_State* L, bool Value)
+				static int32_t Push(lua_State* L, bool& Value)
 				{
 					lua_pushboolean(L, static_cast<bool>(Value));
 					return 1;
@@ -417,11 +338,12 @@ namespace ToLuau
 					return static_cast<bool>(luaL_checkboolean(L, Pos));
 				}
 			};
+			template<> struct BuildInPushValue<bool> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<float, void>
 			{
-				static int32_t Push(lua_State* L, float Value)
+				static int32_t Push(lua_State* L, float& Value)
 				{
 					lua_pushnumber(L, static_cast<float>(Value));
 					return 1;
@@ -432,11 +354,12 @@ namespace ToLuau
 					return static_cast<float>(luaL_checknumber(L, Pos));
 				}
 			};
+			template<> struct BuildInPushValue<float> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<double, void>
 			{
-				static int32_t Push(lua_State* L, double Value)
+				static int32_t Push(lua_State* L, double& Value)
 				{
 					lua_pushnumber(L, static_cast<double>(Value));
 					return 1;
@@ -447,6 +370,7 @@ namespace ToLuau
 					return static_cast<double>(luaL_checknumber(L, Pos));
 				}
 			};
+			template<> struct BuildInPushValue<double> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<std::nullptr_t, void>
@@ -462,21 +386,7 @@ namespace ToLuau
 					return nullptr;
 				}
 			};
-
-//			template<>
-//			struct StackOperatorWrapper<void*, void>
-//			{
-//				static int32_t Push(lua_State* L, void* Value)
-//				{
-//					lua_pushlightuserdata(L, Value);
-//					return 1;
-//				}
-//
-//				static void* Check(lua_State* L, int32_t Pos)
-//				{
-//					return static_cast<void*>(lua_tolightuserdata(L, Pos));
-//				}
-//			};
+			template<> struct BuildInPushValue<std::nullptr_t> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<std::string, void>
@@ -487,13 +397,14 @@ namespace ToLuau
 					return 1;
 				}
 
-                static std::string Check(lua_State* L, int32_t Pos)
-                {
-                    size_t len;
-                    const char* str = luaL_checklstring(L, Pos, &len);
-                    return std::string{str, len};
-                }
+				static std::string Check(lua_State* L, int32_t Pos)
+				{
+					size_t len;
+					const char* str = luaL_checklstring(L, Pos, &len);
+					return std::string{str, len};
+				}
 			};
+			template<> struct BuildInPushValue<std::string> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<const char*, void>
@@ -525,6 +436,7 @@ namespace ToLuau
 					return static_cast<T>(luaL_checkinteger(L, Pos));
 				}
 			};
+			template<typename T> struct BuildInPushValue<T, typename std::enable_if<std::is_enum_v<T>>::type> { static constexpr bool Value = true; };
 
 			template<typename T>
 			struct StackOperatorWrapper<std::vector<T>>
@@ -538,159 +450,80 @@ namespace ToLuau
 						StackOperatorWrapper<T>::Push(L, Value[i]);
 						lua_settable(L, -3);
 					}
-                    return 1;
+					return 1;
 				}
 
 				static std::vector<T> Check(lua_State* L, int32_t Pos)
 				{
-                    std::vector<T> Result;
+					std::vector<T> Result;
 
-                    if(!lua_istable(L, Pos))
-                    {
-                        luaL_typeerrorL(L, Pos, "table");
-                        return Result;
-                    }
+					if(!lua_istable(L, Pos))
+					{
+						luaL_typeerrorL(L, Pos, "table");
+						return Result;
+					}
 
-                    lua_pushvalue(L, Pos); // table
+					lua_pushvalue(L, Pos); // table
 
-                    lua_pushnil(L); // table nil
-                    while(lua_next(L, -2) != 0) // table key value
-                    {
-                        lua_pushvalue(L, -2); // table key value key
-                        T Value = StackOperatorWrapper<T>::Check(L, -2);
-                        Result.insert(Value);
-                        lua_pop(L, 2); // table key
-                    }
-                    lua_pop(L, 2); // table
-                    return Result;
+					lua_pushnil(L); // table nil
+					while(lua_next(L, -2) != 0) // table key value
+					{
+						lua_pushvalue(L, -2); // table key value key
+						T Value = StackOperatorWrapper<T>::Check(L, -2);
+						Result.insert(Value);
+						lua_pop(L, 2); // table key
+					}
+					lua_pop(L, 2); // table
+					return Result;
 				}
 			};
+			template<typename T> struct BuildInPushValue<std::vector<T>> { static constexpr bool Value = true; };
 
-            template<typename K, typename V>
-            struct StackOperatorWrapper<std::map<K, V>>
-            {
-                static int32_t Push(lua_State* L, const std::map<K, V>& Value)
-                {
-                    lua_newtable(L);
-                    for (const auto &Item: Value)
-                    {
-                        StackOperatorWrapper<K>::Push(L, Item.first);
-                        StackOperatorWrapper<V>::Push(L, Item.second);
-                        lua_settable(L, -3);
-                    }
-                	return 1;
-                }
+			template<typename K, typename V>
+			struct StackOperatorWrapper<std::map<K, V>>
+			{
+				static int32_t Push(lua_State* L, const std::map<K, V>& Value)
+				{
+					lua_newtable(L);
+					for (const auto &Item: Value)
+					{
+						StackOperatorWrapper<K>::Push(L, Item.first);
+						StackOperatorWrapper<V>::Push(L, Item.second);
+						lua_settable(L, -3);
+					}
+					return 1;
+				}
 
-                static std::map<K, V> Check(lua_State* L, int32_t Pos)
-                {
-                    std::map<K, V> Result;
-                    if(!lua_istable(L, Pos))
-                    {
-                        luaL_typeerror(L, Pos, "table");
-                        return Result;
-                    }
+				static std::map<K, V> Check(lua_State* L, int32_t Pos)
+				{
+					std::map<K, V> Result;
+					if(!lua_istable(L, Pos))
+					{
+						luaL_typeerror(L, Pos, "table");
+						return Result;
+					}
 
-                    lua_pushvalue(L, Pos);
+					lua_pushvalue(L, Pos);
 
-                    lua_pushnil(L); // table nil
-                    while(lua_next(L, -2) != 0) // table key value
-                    {
-                        lua_pushvalue(L, -2); // table key value key
-                        K Key = StackOperatorWrapper<K>::Check(L, -1);
-                        V Value = StackOperatorWrapper<V>::Check(L, -2);
-                        Result.insert(std::make_pair(Key, Value));
-                        lua_pop(L, 2); // table key
-                    }
-                    lua_pop(L, 1); // table
-                    return Result;
-                }
+					lua_pushnil(L); // table nil
+					while(lua_next(L, -2) != 0) // table key value
+					{
+						lua_pushvalue(L, -2); // table key value key
+						K Key = StackOperatorWrapper<K>::Check(L, -1);
+						V Value = StackOperatorWrapper<V>::Check(L, -2);
+						Result.insert(std::make_pair(Key, Value));
+						lua_pop(L, 2); // table key
+					}
+					lua_pop(L, 1); // table
+					return Result;
+				}
 
-            };
+			};
+			template<typename K, typename V> struct BuildInPushValue<std::map<K, V>> { static constexpr bool Value = true; };
 
 			
 
 #ifdef TOLUAUUNREAL_API
-
-			template<typename T>
-			struct StackOperatorWrapper<TArray<T>>
-			{
-				static int32_t Push(lua_State* L, const TArray<T>& Value)
-				{
-					lua_newtable(L);
-					for (uint32_t i = 1; i <= Value.size(); ++i)
-					{
-						lua_pushinteger(L, static_cast<int32_t>(i));
-						StackOperatorWrapper<T>::Push(L, Value[i]);
-						lua_settable(L, -3);
-					}
-                    return 1;
-				}
-
-				static TArray<T> Check(lua_State* L, int32_t Pos)
-				{
-                    TArray<T> Result;
-
-                    if(!lua_istable(L, Pos))
-                    {
-                        luaL_typeerrorL(L, Pos, "table");
-                        return Result;
-                    }
-
-                    lua_pushvalue(L, Pos); // table
-
-                    lua_pushnil(L); // table nil
-                    while(lua_next(L, -2) != 0) // table key value
-                    {
-                        lua_pushvalue(L, -2); // table key value key
-                        T Value = StackOperatorWrapper<T>::Check(L, -2);
-                        Result.Add(Value);
-                        lua_pop(L, 2); // table key
-                    }
-                    lua_pop(L, 2); // table
-                    return Result;
-				}
-			};
-
-            template<typename K, typename V>
-            struct StackOperatorWrapper<TMap<K, V>>
-            {
-                static int32_t Push(lua_State* L, const TMap<K, V>& Value)
-                {
-                    lua_newtable(L);
-                    for (const auto &Item: Value)
-                    {
-                        StackOperatorWrapper<K>::Push(L, Item.Key);
-                        StackOperatorWrapper<V>::Push(L, Item.Value);
-                        lua_settable(L, -3);
-                    }
-                	return 1;
-                }
-
-                static TMap<K, V> Check(lua_State* L, int32_t Pos)
-                {
-                    TMap<K, V> Result;
-                    if(!lua_istable(L, Pos))
-                    {
-                        luaL_typeerror(L, Pos, "table");
-                        return Result;
-                    }
-
-                    lua_pushvalue(L, Pos);
-
-                    lua_pushnil(L); // table nil
-                    while(lua_next(L, -2) != 0) // table key value
-                    {
-                        lua_pushvalue(L, -2); // table key value key
-                        K Key = StackOperatorWrapper<K>::Check(L, -1);
-                        V Value = StackOperatorWrapper<V>::Check(L, -2);
-                        Result.Add(Key, Value);
-                        lua_pop(L, 2); // table key
-                    }
-                    lua_pop(L, 1); // table
-                    return Result;
-                }
-
-            };
 
 			template<>
 			struct StackOperatorWrapper<FString>
@@ -705,6 +538,7 @@ namespace ToLuau
 					return StringEx::StdStringToFString(StackOperatorWrapper<std::string>::Check(L, Pos));
 				}
 			};
+			template<> struct BuildInPushValue<FString> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<FName>
@@ -720,6 +554,7 @@ namespace ToLuau
 					return FName(Str.c_str());
 				}
 			};
+			template<> struct BuildInPushValue<FName> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<FText>
@@ -735,131 +570,187 @@ namespace ToLuau
 					return FText::FromString(FString(Str.c_str()));
 				}
 			};
+			template<> struct BuildInPushValue<FText> { static constexpr bool Value = true; };
 
 #endif
 
-            template<typename T>
-            struct StackOperatorWrapper<T*,
+			template<typename T>
+			struct StackOperatorWrapper<T*,
 				typename std::enable_if<
 					!HasStaticLuaClass<T>::Value
+					&& !HasGetClassName<T>::Value
+					&& !IsDefineClassNameByMacro<T>::Value
+#if LUAU_SUPPORT_HOYO_CLASS
+					&& !HasStaticHoYoClass<T>::Value
+#endif
 #ifdef TOLUAUUNREAL_API
 					&& !HasStaticStruct<T>::Value
 					&& !TIsDerivedFrom<T, UObject>::Value
 					&& !TIsDerivedFrom<T, FProperty>::Value
 #endif
 					>::type>
-            {
-                static int32_t Push(lua_State* L, T* Value)
-                {
-                	if(!Value)
-                	{
-                		lua_pushnil(L);
-                		return 1;
-                	}
-                    lua_pushlightuserdata(L, Value);
-                    return 1;
-                }
-
-                static T* Check(lua_State* L, int32_t Pos)
-                {
-                    if(!lua_islightuserdata(L, Pos))
-                    {
-                        luaL_typeerror(L, Pos, "lightuserdata");
-                        return nullptr;
-                    }
-                    return reinterpret_cast<T*>(lua_tolightuserdata(L, Pos))->RawPtr;
-                }
-            };
-
-            template<typename T>
-            struct StackOperatorWrapper<T*, typename std::enable_if<
-            	HasStaticLuaClass<T>::Value
-#ifdef TOLUAUUNREAL_API
-				|| HasStaticStruct<T>::Value // Struct Pointer Use Normal RawPtr
-#endif
-			>::type>
-            {
-                static int32_t Push(lua_State* L, T* Value)
-                {
-                	if(!Value)
-                	{
-                		lua_pushnil(L);
-                	}
-                    auto ClassName = GetClassName<T>(Value);
-                    UserData<T>* NewUserData = static_cast<UserData<T>*>(lua_newuserdatatagged(L, sizeof(UserData<T>), UD_TAG(RawPtr)));
-
-                    NewUserData->RawPtr = Value;
-#if ToLuauDebug
-                	NewUserData->DebugName = ClassName.c_str();
-#endif 	
-                	SetClassMetaTable(L, ClassName);
-                    return 1;
-                }
-
-                static T* Check(lua_State* L, int32_t Pos)
-                {
-                	if (void* RawPtr = lua_touserdatatagged(L, Pos, UD_TAG(RawPtr)))
-                	{
-                		return static_cast<UserData<T>*>(RawPtr)->GetValue();
-                	}
-                	else if (void* StdSharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(StdSharedPtr)))
-                	{
-                		return static_cast<std::shared_ptr<T>*>(StdSharedPtr)->get();
-                	}
-                	else if (void* StdWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(StdWeakPtr)))
-                	{
-                		return (*static_cast<std::weak_ptr<T>*>(StdWeakPtr)).lock().get();
-                	}
-#ifdef TOLUAUUNREAL_API
-                	else if (void* UESharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(UESharedPtr)))
-                	{
-                		return static_cast<TSharedPtr<T>*>(UESharedPtr)->Get();
-                	}
-                	else if (void* UEWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakPtr)))
-                	{
-                		TWeakPtr<T> WeakPtr = *static_cast<TWeakPtr<T>*>(UEWeakPtr);
-                		if(!WeakPtr.IsValid())
-                		{
-                			return nullptr;
-                		}
-                		return WeakPtr.Pin().Get();
-                	}
-                	else if (void* UEObjStrongPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEObjStrongPtr)))
-                	{
-                		return static_cast<TStrongObjectPtr<T>*>(UEObjStrongPtr)->Get();
-                	}
-                	else if (void* UEObjWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEObjWeakPtr)))
-                	{
-                		return static_cast<TWeakObjectPtr<T>*>(UEObjWeakPtr)->Get();
-                	}
-                	else if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(UEStruct)))
-                	{
-                		return static_cast<T*>(UEStruct); 
-                	}
-#endif
-                	return nullptr;
-                }
-
-            };
-
-#ifdef TOLUAUUNREAL_API
-
-			template<typename T>
-			struct StackOperatorWrapper<T, typename std::enable_if<HasStaticStruct<T>::Value>::type>
 			{
-				static int32_t Push(lua_State* L, const T& Value)
+				static int32_t Push(lua_State* L, T* Value)
 				{
 					if(!Value)
 					{
 						lua_pushnil(L);
 						return 1;
 					}
+					lua_pushlightuserdata(L, (void*)Value);
+					return 1;
+				}
+
+				static T* Check(lua_State* L, int32_t Pos)
+				{
+					if(!lua_islightuserdata(L, Pos))
+					{
+						luaL_typeerror(L, Pos, "lightuserdata");
+						return nullptr;
+					}
+					return reinterpret_cast<T*>(lua_tolightuserdata(L, Pos));
+				}
+			};
+
+			template<typename T>
+			struct StackOperatorWrapper<T&, typename std::enable_if<
+				(HasStaticLuaClass<T>::Value
+				|| IsDefineClassNameByMacro<T>::Value
+#ifdef TOLUAUUNREAL_API
+				|| HasStaticStruct<T>::Value // Struct Pointer Use Normal RawPtr
+#endif
+				)
+#if LUAU_SUPPORT_HOYO_CLASS
+				&& !HasStaticHoYoClass<T>::Value
+#endif
+#ifdef TOLUAUUNREAL_API
+				&& !TIsDerivedFrom<T, UObject>::Value
+#endif
+			>::type>
+			{
+				static int32_t Push(lua_State* L, T& Value)
+				{
+					return StackOperatorWrapper<T*>::Push(L, &Value);
+				}
+
+				static T& Check(lua_State* L, int32_t Pos)
+				{
+					return StackOperatorWrapper<T*>::Check(L, &Pos);
+				}
+			};
+
+			template<typename T>
+			int32_t PushRawPtr(lua_State* L, T* Value)
+			{
+				if(!Value)
+				{
+					lua_pushnil(L);
+				}
+				auto ClassName = ToLuau::GetClassName<T>(Value);
+				UserData<T>* NewUserData = static_cast<UserData<T>*>(lua_newuserdatatagged(L, sizeof(UserData<T>), UD_TAG(RawPtr)));
+
+				NewUserData->SetValue(Value);
+#if ToLuauDebug
+				NewUserData->SetDebugName(ClassName.c_str());
+#endif 	
+				SetClassMetaTable(L, ClassName);
+				return 1;
+			}
+			
+			template<typename T>
+			T* CheckRawPtr(lua_State* L, int32_t Pos)
+			{
+				if (void* RawPtr = lua_touserdatatagged(L, Pos, UD_TAG(RawPtr)))
+				{
+					return static_cast<UserData<T>*>(RawPtr)->GetValue();
+				}
+				else if (void* RawValue = lua_touserdatatagged(L, Pos, UD_TAG(RawValue)))
+				{
+					return static_cast<UserData<T>*>(RawValue)->GetValue();
+				}
+				else if (void* StdSharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(StdSharedPtr)))
+				{
+					return static_cast<std::shared_ptr<T>*>(StdSharedPtr)->get();
+				}
+				else if (void* StdWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(StdWeakPtr)))
+				{
+					return (*static_cast<std::weak_ptr<T>*>(StdWeakPtr)).lock().get();
+				}
+#ifdef TOLUAUUNREAL_API
+				else if (void* UESharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(UESharedPtr)))
+				{
+					return static_cast<TSharedPtr<T>*>(UESharedPtr)->Get();
+				}
+				else if (void* UEWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakPtr)))
+				{
+					TWeakPtr<T> WeakPtr = *static_cast<TWeakPtr<T>*>(UEWeakPtr);
+					if(!WeakPtr.IsValid())
+					{
+						return nullptr;
+					}
+					return WeakPtr.Pin().Get();
+				}
+				else if (void* UEObjStrongPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEObjStrongPtr)))
+				{
+					return static_cast<TStrongObjectPtr<T>*>(UEObjStrongPtr)->Get();
+				}
+				else if (void* UEObjWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEObjWeakPtr)))
+				{
+					return static_cast<TWeakObjectPtr<T>*>(UEObjWeakPtr)->Get();
+				}
+				else if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(UEStruct)))
+				{
+					return static_cast<T*>(UEStruct); 
+				}
+#endif
+				return nullptr;
+			}
+			
+			template<typename T>
+			struct StackOperatorWrapper<T*, typename std::enable_if<
+				(HasStaticLuaClass<T>::Value
+				|| IsDefineClassNameByMacro<T>::Value
+#ifdef TOLUAUUNREAL_API
+				|| HasStaticStruct<T>::Value // Struct Pointer Use Normal RawPtr
+#endif
+				)
+#if LUAU_SUPPORT_HOYO_CLASS
+				&& !HasStaticHoYoClass<T>::Value
+#endif
+#ifdef TOLUAUUNREAL_API
+				&& !TIsDerivedFrom<T, UObject>::Value
+#endif
+			>::type>
+			{
+				static int32_t Push(lua_State* L, T* Value)
+				{
+					return PushRawPtr<T>(L, Value);
+				}
+
+				static T* Check(lua_State* L, int32_t Pos)
+				{
+					return CheckRawPtr<T>(L, Pos);
+				}
+
+			};
+
+#ifdef TOLUAUUNREAL_API
+
+			template<typename T>
+			struct StackOperatorWrapper<T, typename std::enable_if<HasStaticStruct<T>::Value>::type>
+			{
+				static int32_t Push(lua_State* L, T& Value)
+				{
 					UScriptStruct* ScriptStruct = T::StaticStruct();
 					void* p = lua_newuserdatatagged(L, sizeof(T), UD_TAG(UEStruct));
 					ScriptStruct->InitializeStruct(p);
 			
-					auto ClassName = GetClassName<T>(Value);
+					auto ClassName = GetClassName<T>();
 					// set metatable
+					if(!HasMetaTable(L, ClassName))
+					{
+						RegStruct(L, ScriptStruct);
+					}
 					SetClassMetaTable(L, ClassName);
 			
 					*static_cast<T*>(p) = Value;
@@ -873,13 +764,13 @@ namespace ToLuau
 					{
 						return *static_cast<T*>(p);
 					}
-					luaL_typeerror(L, 1, "UEStruct");
+					luaL_typeerror(L, Pos, "UEStruct");
 				}
 			};
-
+			template<typename T> struct BuildInPushValue<T, typename std::enable_if<HasStaticStruct<T>::Value>::type> { static constexpr bool Value = true; };
 
 			template<typename T>
-			struct StackOperatorWrapper<T*, typename std::enable_if<TIsDerivedFrom<T, UObject>::Value>::type>
+			struct StackOperatorWrapper<T*, typename std::enable_if<TIsDerivedFrom<T, UObject>::Value || HasStaticClass<T>::Value>::type>
 			{
 				static int32_t Push(lua_State* L, T* Value)
 				{
@@ -903,7 +794,7 @@ namespace ToLuau
 			template<typename T>
 			struct StackOperatorWrapper<std::shared_ptr<T>>
 			{
-				static int32_t Push(lua_State* L, std::shared_ptr<T> Value)
+				static int32_t Push(lua_State* L, std::shared_ptr<T> Value, lua_CFunction SetupMetatable = nullptr)
 				{
 					if(Value == nullptr)
 					{
@@ -918,7 +809,10 @@ namespace ToLuau
 					auto ClassName = GetClassName<T>(Value.get());
 
 					// set metatable
-					SetClassMetaTable(L, ClassName);
+					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					{
+						SetClassMetaTable(L, ClassName, SetupMetatable);
+					}
 
 					auto& Ptr = *static_cast<std::shared_ptr<T>*>(p);
 					Ptr.reset();
@@ -941,14 +835,16 @@ namespace ToLuau
 						}
 						return std::static_pointer_cast<T>(Weak.lock());
 					}
-					luaL_typeerror(L, 1, "std::shared_ptr");
+					luaL_typeerror(L, pos, "std::shared_ptr");
 				}
 			};
+			template<typename T> struct BuildInPushValue<std::shared_ptr<T>> { static constexpr bool Value = true; };
 
+			
 			template<typename T>
 			struct StackOperatorWrapper<std::weak_ptr<T>>
 			{
-				static int32_t Push(lua_State* L, std::weak_ptr<T> Value)
+				static int32_t Push(lua_State* L, std::weak_ptr<T> Value, lua_CFunction SetupMetatable = nullptr)
 				{
 					if(Value.expired())
 					{
@@ -961,7 +857,10 @@ namespace ToLuau
 
 					auto ClassName = GetClassName<T>(Value.lock().get());
 					// set metatable
-					SetClassMetaTable(L, ClassName);
+					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					{
+						SetClassMetaTable(L, ClassName, SetupMetatable);
+					}
 
 					auto& Ptr = *static_cast<std::weak_ptr<T>*>(p);
 					Ptr.reset();
@@ -980,9 +879,80 @@ namespace ToLuau
 						auto Shared = *static_cast<std::shared_ptr<void>*>(p);
 						return std::static_pointer_cast<T>(Shared);
 					}
-					luaL_typeerror(L, 1, "std::weak_ptr");
+					luaL_typeerror(L, pos, "std::weak_ptr");
 				}
 			};
+			template<typename T> struct BuildInPushValue<std::weak_ptr<T>> { static constexpr bool Value = true; };
+			
+#ifdef TOLUAUUNREAL_API
+#if LUAU_SUPPORT_HOYO_CLASS
+			
+			template<typename T>
+			struct StackOperatorWrapper<T*, typename std::enable_if<
+				HasStaticHoYoClass<T>::Value
+#ifdef TOLUAUUNREAL_API
+				&& !TIsDerivedFrom<T, UObject>::Value
+#endif
+			>::type>
+			{
+				static int32_t Push(lua_State* L, T* Value)
+				{
+					if(!Value)
+					{
+						lua_pushnil(L);
+					}
+					
+					const FHoYoClass& HoYoClass = Value->GetHoYoClass();
+					auto* CurrentClass = &HoYoClass;
+					do
+					{
+						auto FuncPtr = HoYoClass::HoYoClassRegisterPushFuncMap.Find(*CurrentClass);
+						if(FuncPtr)
+						{
+							return (*FuncPtr)(L, Value);
+						}
+						CurrentClass = CurrentClass->GetBaseClass();
+					}while(CurrentClass);
+
+					if(HoYoClass.GetUClass())
+					{
+						LUAU_ERROR_F("please register custom hoyo class (%s) pusher and checker with LUAU_REG_CUSTOM_HOYO_CLASS_PUSHER_CHECKER, it may cause crash",
+								StringEx::FStringToStdString(HoYoClass.GetName().ToString()).c_str());
+					}
+					
+					return PushRawPtr<T>(L, Value);
+				}
+
+				static T* Check(lua_State* L, int32_t Pos)
+				{
+					if(lua_isnil(L, Pos))
+					{
+						return nullptr;
+					}
+					
+					const FHoYoClass& HoYoClass = T::StaticHoYoClass();
+					auto* CurrentClass = &HoYoClass;
+					do
+					{
+						auto FuncPtr = HoYoClass::HoYoClassRegisterCheckFuncMap.Find(HoYoClass);
+						if(FuncPtr)
+						{
+							return static_cast<T*>((*FuncPtr)(L, Pos));
+						}
+						CurrentClass = CurrentClass->GetBaseClass();
+					} while (CurrentClass);
+					
+					if(HoYoClass.GetUClass())
+					{
+						LUAU_ERROR_F("please register custom hoyo class (%s) pusher and checker with LUAU_REG_CUSTOM_HOYO_CLASS_PUSHER_CHECKER, it may cause crash",
+								StringEx::FStringToStdString(HoYoClass.GetName().ToString()).c_str());
+					}
+					
+					return CheckRawPtr<T>(L, Pos);
+				}
+			};
+#endif
+#endif
 
 #ifdef TOLUAUUNREAL_API
 
@@ -991,7 +961,7 @@ namespace ToLuau
 			template<typename T>
 			struct StackOperatorWrapper<LuaUESharedPtr<T>>
 			{
-				static int32_t Push(lua_State* L, LuaUESharedPtr<T> Value)
+				static int32_t Push(lua_State* L, LuaUESharedPtr<T> Value, lua_CFunction SetupMetatable = nullptr)
 				{
 					if(!Value.IsValid())
 					{
@@ -1005,7 +975,10 @@ namespace ToLuau
 					
 					auto ClassName = GetClassName<T>(Value.Get());
 					// set metatable
-					SetClassMetaTable(L, ClassName);
+					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					{
+						SetClassMetaTable(L, ClassName, SetupMetatable);
+					}
 					
 					*static_cast<LuaUESharedPtr<void>*>(p) = Value;
 					return 1;
@@ -1026,14 +999,15 @@ namespace ToLuau
 						}
 						return StaticCastSharedPtr<T>(Weak.Pin());
 					}
-					luaL_typeerror(L, 1, "TSharedPtr");
+					luaL_typeerror(L, pos, "TSharedPtr");
 				}
 			};
-
+			template<typename T> struct BuildInPushValue<LuaUESharedPtr<T>> { static constexpr bool Value = true; };
+			
 			template<typename T>
 			struct StackOperatorWrapper<LuaUEWeakPtr<T>>
 			{
-				static int32_t Push(lua_State* L, LuaUEWeakPtr<T> Value)
+				static int32_t Push(lua_State* L, LuaUEWeakPtr<T> Value, lua_CFunction SetupMetatable = nullptr)
 				{
 					if(!Value.IsValid())
 					{
@@ -1044,7 +1018,10 @@ namespace ToLuau
 
 					auto ClassName = GetClassName<T>(Value.Pin().Get());
 					// set metatable
-					SetClassMetaTable(L, ClassName);
+					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					{
+						SetClassMetaTable(L, ClassName, SetupMetatable);
+					}
 					
 					*static_cast<LuaUEWeakPtr<void>*>(p) = Value;
 					return 1;
@@ -1065,14 +1042,15 @@ namespace ToLuau
 						}
 						return Shared;
 					}
-					luaL_typeerror(L, 1, "TWeakPtr");
+					luaL_typeerror(L, pos, "TWeakPtr");
 				}
 			};
+			template<typename T> struct BuildInPushValue<LuaUEWeakPtr<T>> { static constexpr bool Value = true; };
 
 			template<typename T>
 			struct StackOperatorWrapper<LuaUEObjStrongPtr<T>>
 			{
-				static int32_t Push(lua_State* L, LuaUEObjStrongPtr<T> Value)
+				static int32_t Push(lua_State* L, LuaUEObjStrongPtr<T> Value, lua_CFunction SetupMetatable = nullptr)
 				{
 					if(!Value.IsValid())
 					{
@@ -1081,16 +1059,22 @@ namespace ToLuau
 					}
 					
 					LuaUEObjStrongPtr<UObject> Temp;
-					void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(UEObjStrongPtr));\
+					void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(UEObjStrongPtr));
 					memcpy(p, &Temp, sizeof(Temp));
 
 					// set metatable
-					auto ClassName = GetClassName<T>(Value.Get());;
-					SetClassMetaTable(L, ClassName);
+					auto ClassName = GetClassName<T>(Value.Get());
+					if(!HasMetaTable(L, ClassName))
+					{
+						RegClass(L, Value->GetClass());
+					}
+					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					{
+						SetClassMetaTable(L, ClassName, SetupMetatable);
+					}
 
 					LuaUEObjStrongPtr<UObject>& StrongObjectPtr = *static_cast<LuaUEObjStrongPtr<UObject>*>(p);
-					StrongObjectPtr.Reset();
-					StrongObjectPtr = Value;
+					StrongObjectPtr.Reset( (UObject*)(Value.Get()));
 					return 1;
 				}
 
@@ -1110,14 +1094,15 @@ namespace ToLuau
 						}
 						return LuaUEObjStrongPtr<T>(Cast<T>(Weak.Get()));
 					}
-					luaL_typeerror(L, 1, "LuaUEObjStrongPtr");
+					luaL_typeerror(L, pos, "LuaUEObjStrongPtr");
 				}
 			};
-
+			template<typename T> struct BuildInPushValue<LuaUEObjStrongPtr<T>> { static constexpr bool Value = true; };
+			
 			template<>
 			struct StackOperatorWrapper<FWeakObjectPtr>
 			{
-				static int32_t Push(lua_State* L, FWeakObjectPtr Value)
+				static int32_t Push(lua_State* L, FWeakObjectPtr Value, lua_CFunction SetupMetatable = nullptr)
 				{
 					if(!Value.IsValid())
 					{
@@ -1129,8 +1114,16 @@ namespace ToLuau
 					memcpy(p, &Temp, sizeof(Temp));
 
 					// set metatable
-					std::string ClassName = StringEx::FStringToStdString(Value.Get()->GetClass()->GetName());
-					SetClassMetaTable(L, ClassName);
+					auto Obj = Value.Get();
+					std::string ClassName = GetClassName<UObject>(Obj);
+					if(!HasMetaTable(L, ClassName))
+					{
+						RegClass(L, Value.Get()->GetClass());
+					}
+					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					{
+						SetClassMetaTable(L, ClassName, SetupMetatable);
+					}
 
 					*static_cast<FWeakObjectPtr*>(p) = Value;
 					return 1;
@@ -1151,9 +1144,10 @@ namespace ToLuau
 						}
 						return FWeakObjectPtr(Strong.Get());
 					}
-					luaL_typeerror(L, 1, "LuaUEObjWeakPtr");
+					luaL_typeerror(L, pos, "LuaUEObjWeakPtr");
 				}
 			};
+			template<> struct BuildInPushValue<FWeakObjectPtr> { static constexpr bool Value = true; };
 
 			template<>
 			struct StackOperatorWrapper<FSoftObjectPtr>
@@ -1181,11 +1175,12 @@ namespace ToLuau
 					return FSoftObjectPtr(FSoftObjectPath(Path));
 				}
 			};
+			template<> struct BuildInPushValue<FSoftObjectPtr> { static constexpr bool Value = true; };
 			
 			template<typename T>
 			struct StackOperatorWrapper<LuaUEObjWeakPtr<T>>
 			{
-				static int32_t Push(lua_State* L, LuaUEObjWeakPtr<T> Value)
+				static int32_t Push(lua_State* L, LuaUEObjWeakPtr<T> Value, lua_CFunction SetupMetatable = nullptr)
 				{
 					if(!Value.IsValid())
 					{
@@ -1197,11 +1192,20 @@ namespace ToLuau
 					void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(UEObjWeakPtr));
 					memcpy(p, &Temp, sizeof(Temp));
 
-					auto ClassName = GetClassName<T>(Value.Get());;
+					auto ClassName = GetClassName<T>(Value.Get());
 					// set metatable
-					SetClassMetaTable(L, ClassName);
-					
-					*static_cast<LuaUEObjWeakPtr<UObject>*>(p) = Value;
+					if(!HasMetaTable(L, ClassName))
+					{
+						RegClass(L, Value->GetClass());
+					}
+					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					{
+						SetClassMetaTable(L, ClassName, SetupMetatable);
+					}
+
+					LuaUEObjWeakPtr<UObject>& WeakPtr = *static_cast<LuaUEObjWeakPtr<UObject>*>(p);
+					WeakPtr.Reset();
+					WeakPtr = (UObject*)(Value.Get());
 					return 1;
 				}
 
@@ -1220,19 +1224,128 @@ namespace ToLuau
 						}
 						return LuaUEObjWeakPtr<UObject>(Strong.Get());
 					}
-					luaL_typeerror(L, 1, "LuaUEObjWeakPtr");
+					luaL_typeerror(L, pos, "LuaUEObjWeakPtr");
 				}
 			};
+			template<typename T> struct BuildInPushValue<LuaUEObjWeakPtr<T>> { static constexpr bool Value = true; };
 #pragma endregion
 
 #endif
 
+			template<typename T>
+			int32_t PushRawValue(lua_State* L, T Value, lua_CFunction SetupMetatable)
+			{
+				auto ClassName = ToLuau::GetClassName<T>(nullptr);
+				UserData<T>* NewUserData = static_cast<UserData<T>*>(lua_newuserdatatagged(L, sizeof(UserData<T>), UD_TAG(RawValue)));
+
+				NewUserData->SetValue(Value);
+#if ToLuauDebug
+				NewUserData->SetDebugName(ClassName.c_str());
+#endif 	
+				SetClassMetaTable(L, ClassName, SetupMetatable);
+				return 1;
+			}
+
+			template<typename T>
+			T CheckRawValue(lua_State* L, int32_t Pos)
+			{
+				if (void* RawPtr = lua_touserdatatagged(L, Pos, UD_TAG(RawPtr)))
+				{
+					return *static_cast<UserData<T>*>(RawPtr)->GetValue();
+				}
+				if (void* RawValue = lua_touserdatatagged(L, Pos, UD_TAG(RawValue)))
+				{
+					return *static_cast<UserData<T>*>(RawValue)->GetValue();
+				}
+				else if (void* StdSharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(StdSharedPtr)))
+				{
+					return *static_cast<std::shared_ptr<T>*>(StdSharedPtr)->get();
+				}
+				else if (void* StdWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(StdWeakPtr)))
+				{
+					return *(*static_cast<std::weak_ptr<T>*>(StdWeakPtr)).lock().get();
+				}
+#ifdef TOLUAUUNREAL_API
+				else if (void* UESharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(UESharedPtr)))
+				{
+					return *static_cast<TSharedPtr<T>*>(UESharedPtr)->Get();
+				}
+				else if (void* UEWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakPtr)))
+				{
+					TWeakPtr<T> WeakPtr = *static_cast<TWeakPtr<T>*>(UEWeakPtr);
+					if(!WeakPtr.IsValid())
+					{
+						return {};
+					}
+					return *WeakPtr.Pin().Get();
+				}
+#endif
+				return {};
+			}
+			
+			template<typename T>
+			struct StackOperatorWrapper<T, typename std::enable_if<
+					(HasStaticLuaClass<T>::Value
+					|| HasGetClassName<T>::Value
+					|| IsDefineClassNameByMacro<T>::Value
+#if LUAU_SUPPORT_HOYO_CLASS
+					|| HasStaticHoYoClass<T>::Value
+#endif
+					)
+#ifdef TOLUAUUNREAL_API
+					&& !HasStaticStruct<T>::Value
+#endif
+					&& std::is_same<typename RawClass<T>::Type, T>::value
+					&& !BuildInPushValue<T>::Value
+				>::type>
+			{
+				static int32_t Push(lua_State* L, T Value, lua_CFunction SetupMetatable = nullptr)
+				{
+					return PushRawValue<T>(L, Value, SetupMetatable);
+				}
+
+				static T Check(lua_State* L, int32_t Pos)
+				{
+					return CheckRawValue<T>(L, Pos);
+				}
+			};
+			
 		}
 
 		template<typename T>
 		int32_t Push(lua_State* L, const T& Value)
 		{
-			return __DETAIL__::StackOperatorWrapper<T>::Push(L, Value);
+			return __DETAIL__::StackOperatorWrapper<T>::Push(L, const_cast<T&>(Value));
+		}
+		
+		template<typename T>
+		int32_t Push(lua_State* L, const T& Value, lua_CFunction SetupMetatable)
+		{
+			return __DETAIL__::StackOperatorWrapper<T>::Push(L, const_cast<T&>(Value), SetupMetatable);
+		}
+
+		template<typename T>
+		int32_t Push(lua_State* L, const T* Value)
+		{
+			return __DETAIL__::StackOperatorWrapper<T*>::Push(L, const_cast<T*>(Value));
+		}
+		
+		template<typename T>
+		int32_t Push(lua_State* L, const T* Value, lua_CFunction SetupMetatable)
+		{
+			return __DETAIL__::StackOperatorWrapper<T>::Push(L, const_cast<T*>(Value), SetupMetatable);
+		}
+		
+		template<typename T>
+		int32_t PushRawPtr(lua_State* L, const T* Value)
+		{
+			return __DETAIL__::PushRawPtr<T>(L, const_cast<T*>(Value));
+		}
+		
+		template<typename T>
+		T* CheckRawPtr(lua_State* L, int32_t Pos)
+		{
+			return __DETAIL__::CheckRawPtr<T>(L, Pos);
 		}
 
 		template<typename T>
@@ -1242,12 +1355,33 @@ namespace ToLuau
 		}
 
 		template<class TFirst,class ...TArgs>
+		int PushArgs(lua_State* L, TFirst f, TArgs&& ...args);
+
+		inline int32_t PushArgs(lua_State* L);
+		
+		template<class TFirst,class ...TArgs>
 		int PushArgs(lua_State* L, TFirst f, TArgs&& ...args) {
 			Push<TFirst>(L,f);
-			return 1+PushArgs(std::forward<TArgs>(args)...);
+			return 1+PushArgs(L, std::forward<TArgs>(args)...);
+		}
+
+		template<class TFirst,class ...TArgs>
+		int PushArgsWithRef(lua_State* L, TFirst f, const TArgs& ...args);
+		
+		inline int32_t PushArgsWithRef(lua_State* L);
+		
+		template<class TFirst,class ...TArgs>
+		int PushArgsWithRef(lua_State* L, TFirst f, const TArgs& ...args) {
+			Push<TFirst>(L,f);
+			return 1+PushArgsWithRef(L, args...);
 		}
 
 		inline int32_t PushArgs(lua_State* L)
+		{
+			return 0;
+		}
+		
+		inline int32_t PushArgsWithRef(lua_State* L)
 		{
 			return 0;
 		}
@@ -1278,7 +1412,11 @@ namespace ToLuau
 			return 0;
 		}
 
+		ToLuau_API int32_t FindTable(lua_State* L, const std::string& FullName, bool bCreateIfNil);
+
 #pragma region
+
+
 
 #ifdef TOLUAUUNREAL_API
 
@@ -1294,7 +1432,7 @@ namespace ToLuau
 			
 			int32_t CheckProperty(lua_State* L, FProperty* Prop, UObject* Obj, int32_t Pos);
 
-			int32_t PushUFunction(lua_State* L, UFunction* Function);
+			int32_t PushUFunction(lua_State* L, UFunction* Function, UClass* Class = nullptr);
 
 		}
 
@@ -1308,7 +1446,3 @@ namespace ToLuau
 }
 
 #undef UD_TAG
-#include "Toluau/Containers/ToLuauVar.h"
-#include "Toluau/Containers/ToLuauDelegate.h"
-#include "Toluau/Containers/ToLuauArray.h"
-#include "Toluau/Containers/ToLuauMap.h"

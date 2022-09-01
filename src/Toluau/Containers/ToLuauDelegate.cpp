@@ -50,7 +50,6 @@ void UToLuauDelegate::Dispose()
 	SafeDelete(LuaFunc);
 	UFunc = nullptr;
 }
-#endif
 
 #ifdef TOLUAUUNREAL_API
 
@@ -149,9 +148,9 @@ namespace ToLuau
 
 	void ToLuauMultiDelegate::RemoveRef(UToLuauDelegate* LuauDelegate)
 	{
-		LuauDelegateHolder.RemoveAll([LuauDelegate](TStrongObjectPtr<UToLuauDelegate> Delegate)
+		LuauDelegateHolder.RemoveAll([LuauDelegate](TStrongObjectPtr<UToLuauDelegate> InDelegate)
 		{
-			return Delegate.Get() == LuauDelegate;
+			return InDelegate.Get() == LuauDelegate;
 		});
 	}
 
@@ -243,13 +242,15 @@ namespace ToLuau
 	}
 
 	LUAU_BEGIN_CLASS(ToLuauDelegate)
-    LUAU_CUSTOM_REG(ToLuauDelegate, SetupMetatable)
+		LUAU_CUSTOM_REG(ToLuauDelegate, SetupMetatable)
 	LUAU_REG_LUA_FUNC(ToLuauDelegate, Bind)
 	LUAU_REG_LUA_FUNC(ToLuauDelegate, Clear)
 	LUAU_END_CLASS(ToLuauDelegate)
 	
 	
 }
+
+#endif
 
 #endif
 

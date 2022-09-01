@@ -1,10 +1,9 @@
 #include "ILuauChunkLoader.h"
-
+#include <cassert>
 #include "Toluau/ToLuau.h"
 #include "Toluau/Util/Util.h"
 #include "ToLuauLib.h"
 #include "Luau/Common.h"
-#include "Luau/Compiler.h"
 #ifdef TOLUAUUNREAL_API
 #include "CoreMinimal.h"
 #endif
@@ -55,19 +54,24 @@ namespace ToLuau
 
     bool PackageScriptLoader::Load(const std::string &Path, bool ForceReload)
     {
-    	if(ForceReload)
-    	{
-    		return false;
-    	}
         auto L = Owner->GetOwner()->GetState();
         lua_getref(L, TOLUAU_LOADED_REF); // preload
-        lua_pushstring(L, Path.c_str()); // preload path
-        lua_rawget(L, -2); // preload value
-        if(lua_isnil(L, -1))
-        {
-            lua_pop(L, 1);
-            return false;
-        }
+
+    	std::vector<std::string> Splited = StringEx::Split(Path, ".");
+    	size_t CurrentIndex = 0;
+    	while(CurrentIndex < Splited.size())
+    	{
+    		auto& SubName = Splited[CurrentIndex];
+    		lua_rawgetfield(L, -1, SubName.c_str());  // preload field
+    		if(lua_isnil(L, -1))
+			{
+			    lua_pop(L, 2);
+			    return false;
+			}
+    		lua_remove(L, -2); // field
+    		CurrentIndex++;
+    	}
+      
         return true;
     }
 
@@ -109,38 +113,85 @@ namespace ToLuau
 	{
 		auto L = Owner->GetState();
 
-		std::string FinalLoadPath = ToLuau::PathHelper::Combine(Path, FileName);
+		std::string TempFileName = FileName;
+		StringEx::ReplaceAll(TempFileName, ".", "/");
+		std::string FinalLoadPath = ToLuau::PathHelper::Combine(Path, TempFileName);
         std::string ModuleName = FileName;
-		StringEx::ReplaceAll(ModuleName, ".", "/");
 
         Lua::Log(StringEx::Format("require name : %s", ModuleName.c_str()));
 
-		auto FinishRequire = [](lua_State* L)->int32_t{
+		auto FinishRequire = [](lua_State* L, bool Succ)->int32_t{
 			if (lua_isstring(L, -1))
             {
                 size_t Len;
                 auto ErrorInfo = lua_tolstring(L, -1, &Len);
                 std::string ErrorStr(ErrorInfo, Len);
-                LUAU_LOG(ErrorStr);
+				if(Succ)
+				{
+					LUAU_LOG(ErrorStr);
+				}
+				else
+				{
+					LUAU_ERROR(ErrorStr);
+				}
                 lua_pop(L, 1);
             }
 
 			return 1;
 		};
 
-		lua_getref(L, TOLUAU_LOADED_REF);
+		lua_getref(L, TOLUAU_LOADED_REF); // loaded 
 
-		if(!ForceReload)
+		std::vector<std::string> Splited = StringEx::Split(ModuleName, ".");
+		size_t CurrentIndex = 0;
+
+		while(CurrentIndex < Splited.size() - 1)
+		{
+			auto& SubName = Splited[CurrentIndex];
+			lua_rawgetfield(L, -1, SubName.c_str()); // loaded table
+			if(lua_isnil(L, -1))
+			{
+				lua_pop(L, 1);
+				break;
+			}
+			else
+			{
+				lua_remove(L, -2); // table
+			}
+			CurrentIndex++;
+		}
+		
+		if(!ForceReload && CurrentIndex == Splited.size()-1)
 		{
 			// return the module from the cache
-			lua_getfield(L, -1, ModuleName.c_str());
+			lua_getfield(L, -1, Splited[CurrentIndex].c_str()); // table value
+			lua_remove(L, -2);
 			if (!lua_isnil(L, -1))
 			{
-				FinishRequire(L) ;
+				FinishRequire(L, true) ;
 				return true;
 			}
 			lua_pop(L, 1);
 		}
+		else
+		{
+			while(CurrentIndex < Splited.size() - 1)
+			{
+				auto& SubName = Splited[CurrentIndex];
+				lua_rawgetfield(L, -1, SubName.c_str()); // table value
+				if(lua_isnil(L, -1))
+				{
+					lua_pop(L, 1);
+					lua_newtable(L); // table newtable
+					lua_pushvalue(L, -1);// table newtable newtable
+					lua_setfield(L, -3, SubName.c_str()); // table newtable
+					lua_remove(L, -2); // table
+				}
+				CurrentIndex++;
+			}
+		}
+
+		TOLUAU_ASSERT(CurrentIndex == Splited.size() - 1);
 
         std::string Content;
         auto TryReadFile = [this, &Content](const std::string& FinalLoadPath)->bool {
@@ -194,7 +245,7 @@ namespace ToLuau
             {
                 auto Error = StringEx::Format("cannot read file : %s !", FinalLoadPath.c_str());
                 lua_pushstring(L, Error.c_str());
-                FinishRequire(L);
+                FinishRequire(L, false);
                 return false;
             }
         }
@@ -203,11 +254,14 @@ namespace ToLuau
 		{
             auto Error = StringEx::Format("file : %s is empty !", FinalLoadPath.c_str());
             lua_pushstring(L, Error.c_str());
-            FinishRequire(L);
+            FinishRequire(L, false);
 			return false;
 		}
 
-		std::string ByteCode = Luau::compile(Content, CompileOptions);
+		size_t ResultSize;
+		lua_CompileOptions CurrentOption = CompileOptions;
+		auto ResultChar = luau_compile(Content.c_str(), Content.size(), &CurrentOption, &ResultSize);
+		std::string ByteCode(ResultChar, ResultSize);
 		if (luau_load(L, ModuleName.c_str(), ByteCode.data(), ByteCode.size(), 0) == 0)
 		{
             bool Succ = true;
@@ -225,21 +279,34 @@ namespace ToLuau
             if(Succ)
             {
                 lua_pushvalue(L, -1); // table function
-                lua_call(L, 0, 1); // table function module
-                lua_pushvalue(L, -1);   // table function module module
-                lua_setfield(L, -4, ModuleName.c_str()); // table function module
-                lua_remove(L, 1);
-                lua_remove(L, 1);
+                if(lua_pcall(L, 0, 1, 0) != 0) // table function module
+                {
+                	Succ = false;
+                	
+                	FinishRequire(L, false);
+                }
+                else
+                {
+                	if(lua_isnil(L, -1))// table function nil
+                	{
+                		lua_pop(L, 1); // table function
+                		lua_newtable(L);  // table function module
+                	}
+                	lua_pushvalue(L, -1);   // table function module module
+                	lua_setfield(L, -4, Splited[CurrentIndex].c_str()); // table function module
+                	FinishRequire(L, true);
+                }
             }
 
-            FinishRequire(L);
-
+			lua_remove(L, -2);
+			lua_remove(L, -2);
+			
             return Succ;
 
 		}
         else
         {
-            FinishRequire(L);
+            FinishRequire(L, false);
             return false;
         }
 

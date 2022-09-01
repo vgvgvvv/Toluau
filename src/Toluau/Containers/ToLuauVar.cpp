@@ -4,9 +4,12 @@
 #include "Toluau/API/ToLuauLib.h"
 
 
+
 namespace ToLuau
 {
-	ToLuauVar::ToLuauVar() = default;
+	ToLuauVar::ToLuauVar()
+	{
+	}
 
 	ToLuauVar::ToLuauVar(lua_Integer Value)
 	{
@@ -60,7 +63,7 @@ namespace ToLuau
 		OwnerState = L;
 		switch (T)
 		{
-		case Type::Nil:
+		case Type::None:
 			{
 				break;
 			}
@@ -96,11 +99,12 @@ namespace ToLuau
 				Var NewVar;
 				NewVar.Ref = std::make_shared<LuaRef>(L, Pos);
 				NewVar.LuaType = T;
+				Vars.push_back(NewVar);
 				break;
 			}
 		case Type::Tuple:
 			{
-				assert(Pos > 0 && lua_gettop(L) >= Pos);
+				TOLUAU_ASSERT(Pos > 0 && lua_gettop(L) >= Pos);
 				InitTuple(L, Pos);
 				break;
 			}
@@ -111,10 +115,10 @@ namespace ToLuau
 
 	void ToLuauVar::InitTuple(lua_State* L, int32_t Num)
 	{
-        int32_t Top = lua_gettop(L);
-		assert(Top >= Num);
+		auto Top = lua_gettop(L);
+		TOLUAU_ASSERT(Top >= Num);
 		int32_t First = Top - Num + 1;
-		for(int32_t i = 0; i < Num; i ++)
+		for(size_t i = 0; i < Num; i ++)
 		{
 			int32_t Pos = First + i;
 			int32_t CurrentType = lua_type(L, Pos);
@@ -184,7 +188,7 @@ namespace ToLuau
 			default:
 				{
 					Var NewVar;
-					NewVar.LuaType = Type::Nil;
+					NewVar.LuaType = Type::None;
 					Vars.push_back(NewVar);
 					break;
 				}
@@ -196,7 +200,7 @@ namespace ToLuau
 	{
 		Clear();
 		auto T = lua_type(L, Pos);
-		Type SelfType = Type::Nil;
+		Type SelfType = Type::None;
 		switch (T)
 		{
 		case LUA_TNUMBER:
@@ -221,7 +225,7 @@ namespace ToLuau
 			SelfType = Type::Bool;
 			break;
 		case LUA_TNIL:
-			SelfType = Type::Nil;
+			SelfType = Type::None;
 			break;
 		}
 		Init(L, Pos, SelfType);
@@ -285,7 +289,7 @@ namespace ToLuau
 
 	bool ToLuauVar::IsNil() const
 	{
-		return Vars.empty() || Vars[0].LuaType == Type::Nil;
+		return Vars.empty() || Vars[0].LuaType == Type::None;
 	}
 
 	bool ToLuauVar::IsFunction() const
@@ -342,7 +346,7 @@ namespace ToLuau
 	{
 		if(Vars.size() == 0)
 		{
-			return Type::Nil;
+			return Type::None;
 		}
 		else if(Vars.size() > 1)
 		{
@@ -353,12 +357,12 @@ namespace ToLuau
 
 	int32_t ToLuauVar::ToInt() const
 	{
-		assert(Vars.size() == 1);
+		TOLUAU_ASSERT(Vars.size() == 1);
 		switch (Vars[0].LuaType)
 		{
 		case Type::Number:
 			return Vars[0].Num;
-		case Type::Nil:
+		case Type::None:
 			return 0;
 		case Type::Bool:
 			return Vars[0].Bool ? 1 : 0;
@@ -369,62 +373,60 @@ namespace ToLuau
 
 	float ToLuauVar::ToFloat() const
 	{
-		assert(Vars.size() == 1);
+		TOLUAU_ASSERT(Vars.size() == 1);
 		switch (Vars[0].LuaType)
 		{
 		case Type::Number:
 			return Vars[0].Num;
-		case Type::Nil:
+		case Type::None:
 			return 0;
 		case Type::Bool:
 			return Vars[0].Bool ? 1 : 0;
 		default:
-			assert(false);
-			return 0.0f;
+			return NAN;
 		}
 	}
 
 	double ToLuauVar::ToDouble() const
 	{
-		assert(Vars.size() == 1);
+		TOLUAU_ASSERT(Vars.size() == 1);
 		switch (Vars[0].LuaType)
 		{
 		case Type::Number:
 			return Vars[0].Num;
-		case Type::Nil:
+		case Type::None:
 			return 0;
 		case Type::Bool:
 			return Vars[0].Bool ? 1 : 0;
 		default:
-			assert(false);
-			return 0.0;
+			return NAN;
 		}
 		return 0;
 	}
 
 	std::string ToLuauVar::ToStdString() const
 	{
-		assert(Vars.size() == 1 && Vars[0].LuaType == Type::String);
+		TOLUAU_ASSERT(Vars.size() == 1 && Vars[0].LuaType == Type::String);
 		return *Vars[0].Str;
 	}
 
 #ifdef TOLUAUUNREAL_API
 	FString ToLuauVar::ToFString() const
 	{
-		assert(Vars.size() == 1 && Vars[0].LuaType == Type::String);
+		TOLUAU_ASSERT(Vars.size() == 1 && Vars[0].LuaType == Type::String);
 		return StringEx::StdStringToFString(*Vars[0].Str);
 	}
 #endif
 
 	bool ToLuauVar::ToBool() const
 	{
-		assert(Vars.size() == 1 && Vars[0].LuaType == Type::Bool);
+		TOLUAU_ASSERT(Vars.size() == 1 && Vars[0].LuaType == Type::Bool);
 		return Vars[0].Bool;
 	}
 
 	void* ToLuauVar::ToLightUserData() const
 	{
-		assert(Vars.size() == 1 && Vars[0].LuaType == Type::LightUserData);
+		TOLUAU_ASSERT(Vars.size() == 1 && Vars[0].LuaType == Type::LightUserData);
 		return Vars[0].Ptr;
 	}
 
@@ -453,8 +455,8 @@ namespace ToLuau
 		}
 		else
 		{
-			assert(Index > 0);
-            assert(Index < Vars.size());
+			TOLUAU_ASSERT(Index > 0);
+			TOLUAU_ASSERT(Index < Vars.size());
 			ToLuauVar Result;
 			Var NewVar;
 			NewVar.Clone(Vars[0]);
@@ -489,7 +491,6 @@ namespace ToLuau
 	}
 
 #ifdef TOLUAUUNREAL_API
-
 	int ToLuauVar::PushArgByParams(FProperty* Prop, uint8* Parms) const
 	{
 		if(StackAPI::UE::PushProperty(OwnerState, Prop, Parms))
@@ -620,7 +621,7 @@ namespace ToLuau
 		case Type::LightUserData:
 			Ptr = Other.Ptr;
 			break;
-		case Type::Nil:
+		case Type::None:
 		case Type::Tuple:
 			break;
 		default: ;

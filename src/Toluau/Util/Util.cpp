@@ -24,6 +24,11 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #endif
+
+#include <iostream>
+#include <fstream>
+#include <filesystem>
+
 #else
 #include "ToluauUnreal.h"
 #endif
@@ -107,9 +112,11 @@ namespace ToLuau
 		}
 	}
 
-#ifndef TOLUAUUNREAL_API
+
 	namespace FileEx
 	{
+		
+#ifndef TOLUAUUNREAL_API
 		#ifdef _WIN32
 		static std::wstring FromUtf8(const std::string& path)
 		{
@@ -168,8 +175,96 @@ namespace ToLuau
 
 			return result;
 		}
-	}
+#else
+		ToLuau_API std::optional<std::string> ReadFile(const std::string& name)
+		{
+			FString Content;
+			FFileHelper::LoadFileToString(Content, ANSI_TO_TCHAR(name.c_str()));
+			std::optional<std::string> Result;
+			if(!Content.IsEmpty())
+			{
+				Result = StringEx::FStringToStdString(Content);
+			}
+			return Result;
+		}
 #endif
+
+		void WriteFile(const std::string& Path, const std::string& Content)
+		{
+
+#ifdef TOLUAUUNREAL_API
+			FFileHelper::SaveStringToFile(StringEx::StdStringToFString(Content), *StringEx::StdStringToFString(Path));
+#else
+			std::ofstream Result;
+			Result.open (Path);
+			Result << Content;
+			Result.close();
+#endif
+		}
+
+		bool FileExist(const std::string& Path)
+		{
+#ifdef TOLUAUUNREAL_API
+			auto RealPath = StringEx::StdStringToFString(Path);
+			auto& Manager = IFileManager::Get();
+			return Manager.FileExists(*RealPath);
+#else
+			return std::filesystem::exists(Path) && !std::filesystem::is_directory(Path);
+#endif
+		}
+
+		void RemoveFile(const std::string& Path)
+		{
+#ifdef TOLUAUUNREAL_API
+			auto RealPath = StringEx::StdStringToFString(Path);
+			auto& Manager = IFileManager::Get();
+			Manager.Delete(*RealPath);
+#else
+			std::filesystem::remove(Path);
+#endif
+		}
+
+		bool DirExist(const std::string& Path)
+		{
+#ifdef TOLUAUUNREAL_API
+			auto RealPath = StringEx::StdStringToFString(Path);
+			auto& Manager = IFileManager::Get();
+			return Manager.DirectoryExists(*RealPath);
+#else
+			return std::filesystem::exists(Path) && std::filesystem::is_directory(Path);
+#endif
+		}
+
+		void RemoveDir(const std::string& Path)
+		{
+#ifdef TOLUAUUNREAL_API
+			auto RealPath = StringEx::StdStringToFString(Path);
+			auto& Manager = IFileManager::Get();
+			Manager.DeleteDirectory(*RealPath, true, true);
+#else
+			std::filesystem::remove_all(Path);
+#endif
+		}
+
+		void CreateDir(const std::string& Path)
+		{
+#ifdef TOLUAUUNREAL_API
+			auto RealPath = StringEx::StdStringToFString(Path);
+			auto& Manager = IFileManager::Get();
+			if(!Manager.DirectoryExists(*RealPath))
+			{
+				Manager.MakeDirectory(*RealPath, true);
+			}
+#else
+			if(!std::filesystem::exists(Path))
+			{
+				std::filesystem::create_directory(Path);
+			}
+#endif
+		}
+
+		
+	}
 	
 	namespace Lua
 	{
@@ -260,7 +355,7 @@ namespace ToLuau
             		}
                     else
                     {
-						lua_getfield(L, -1, ".name"); // value mt name
+						lua_getfield(L, -1, "__type"); // value mt name
                     	if(!lua_isstring(L, -1))
                     	{
                     		lua_pop(L, 2);

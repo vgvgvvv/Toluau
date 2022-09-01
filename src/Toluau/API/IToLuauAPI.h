@@ -3,9 +3,14 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <stack>
 
 #include "lua.h"
 #include "Arg.h"
+#include "ToLuau/API/ToLuauLib.h"
+#include "ToLuau/API/StackAPI.h"
+#include "Toluau/API/ScopeHelper.h"
+#include "Toluau/ToLuau.h"
 
 #include "Toluau/ToLuauDefine.h"
 
@@ -81,12 +86,29 @@ namespace ToLuau
 
 		static std::shared_ptr<IToLuauAPI> Create(ILuauState* InOwner);
 
-		#pragma region Function
+#pragma region Function
 
 	public:
-		virtual void CallFunc(const std::string& FuncName) = 0;
+		
+		virtual void CallFunc(const std::string& FuncName, int32_t RetNum = 0) = 0;
 
-		virtual void CallFuncWithArg(const std::string& FuncName, const IArg& Arg) = 0;
+		template<typename T>
+		T CallFuncR(const std::string& FuncName)
+		{
+			auto L = GetOwner()->GetState();
+			CallFunc(FuncName, 1);
+			return StackAPI::Check<T>(L, -1);
+		}
+
+		virtual void CallFuncWithArg(const std::string& FuncName, const IArg& Arg, int32_t RetNum = 0) = 0;
+
+		template<typename T>
+		T CallFuncWithArgR(const std::string& FuncName, const IArg& Arg)
+		{
+			auto L = GetOwner()->GetState();
+			CallFuncWithArg(FuncName, Arg, 1);
+			return StackAPI::Check<T>(L, -1);
+		}
 
 		template<typename TArg1>
 		void CallFunc(const std::string& FuncName, TArg1 InArg1)
@@ -303,15 +325,150 @@ namespace ToLuau
 			                InArg9);
 			CallFuncWithArg(FuncName, Args);
 		}
-
 	protected:
 
 		virtual bool GetFuncGlobal(const std::string& LuaFunc, bool* bIsClassFunc) = 0;
 
 		virtual int32_t DoPCall(int32_t ArgNum, int32_t RetNum) = 0;
 
-		#pragma endregion
+#pragma endregion
 
+	public:
+
+		template<typename T>
+		bool GetAnyFromState(const std::string& FullName, T& Result)
+		{
+			auto L = GetOwner()->GetState();
+			StackAPI::AutoStack AutoStack(L);
+
+			auto Pos = FullName.find_last_of('.');
+			std::string TableName;
+			std::string TargetName;
+			if(Pos == std::string::npos)
+			{
+				TargetName = FullName;
+				lua_getglobal(L, TargetName.c_str()); // globalvalue
+
+				if(lua_isnil(L, -1)) // nil
+				{
+					lua_pop(L, 1);
+    			
+					lua_getref(L, TOLUAU_LOADED_REF); // ref
+					lua_getfield(L, -1, TargetName.c_str()); // ref field
+					if(lua_isnil(L, -1)) // ref nil
+					{
+						lua_pop(L, 2);
+						LUAU_ERROR_F("cannot find %s in gobal and loaded", TargetName.c_str())
+						return false;
+					}
+					else
+					{
+						lua_remove(L, -2); // field
+						Result = StackAPI::Check<T>(L, -1);
+						return true;
+					}
+				}
+				else
+				{
+					Result = StackAPI::Check<T>(L, -1);
+					return true;
+				}
+			}
+			else
+			{
+				TableName = FullName.substr(0, Pos);
+				TargetName = FullName.substr(Pos + 1, FullName.size() - Pos - 1);
+
+				StackAPI::FindTable(L, TableName, false); // table
+
+				if(!lua_istable(L, -1)) // nil
+				{
+					lua_pop(L, 1); //
+					LUAU_ERROR_F("%s is not a table", TableName.c_str())
+					return false;
+				}
+			
+				lua_getfield(L, -1, TargetName.c_str()); // table value
+
+				if(lua_isnil(L, -1))  // table nil
+				{
+					lua_pop(L, 2);
+					LUAU_ERROR_F("cannot find %s in %s", TargetName.c_str(), TableName.c_str())
+					return false;
+				}
+
+				lua_remove(L, -2); // value
+				Result = StackAPI::Check<T>(L, -1);
+				return true;
+
+			}
+		}
+
+		template<typename T>
+		bool SetAnyToState(const std::string& FullName, const T& Value)
+		{
+			auto L = GetOwner()->GetState();
+			StackAPI::AutoStack AutoStack(L);
+
+			auto Pos = FullName.find_last_of('.');
+			std::string TableName;
+			std::string TargetName;
+			
+			if(Pos == std::string::npos)
+			{
+				TargetName = FullName;
+				StackAPI::Push<T>(L, Value); // value
+				lua_setglobal(L, TableName.c_str());
+				return true;
+			}
+			else
+			{
+				TableName = FullName.substr(0, Pos);
+				TargetName = FullName.substr(Pos + 1, FullName.size() - Pos - 1);
+
+				StackAPI::FindTable(L, TableName, true); // table
+
+				if(!lua_istable(L, -1)) // nil
+				{
+					lua_pop(L, 1); //
+					LUAU_ERROR_F("%s is not a table", TableName.c_str())
+					return false;
+				}
+
+				StackAPI::Push<T>(L, Value); // table value
+				lua_setfield(L, -2, TargetName.c_str()); // table
+
+				lua_pop(L, 1);
+			
+				return true;
+			}
+		}
+
+#ifdef TOLUAUUNREAL_API
+
+#define TO_STD(Str) StringEx::FStringToStdString(Str)
+		
+		template<typename T>
+		bool GetAnyFromStateF(const FString& FullName, T& Result)
+		{
+			return GetAnyFromState<T>(TO_STD(FullName), Result);
+		}
+
+		template<typename T>
+		bool SetAnyToStateF(const FString& FullName, const T& Value)
+		{
+			return SetAnyToState<T>(TO_STD(FullName), Value);
+		}
+
+#undef TO_STD
+
+#endif
+		
+		virtual bool CheckNum(int32_t Count) = 0;
+
+		virtual bool CheckRange(int32_t Min, int32_t Max) = 0;
+
+		virtual void ResetStack() = 0;
 	public:
 
 		static const char* GetMtName(MetatableEvent Type);

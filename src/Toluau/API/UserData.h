@@ -9,6 +9,8 @@
 #ifdef TOLUAUUNREAL_API
 #include "CoreMinimal.h"
 #endif
+#include "Toluau/Class/ClassName.h"
+#include "Toluau/ToLuauDefine.h"
 #include "Toluau/Class/ClassInfo.h"
 
 namespace ToLuau
@@ -16,7 +18,9 @@ namespace ToLuau
 
     struct BaseUserData
     {
+    protected:
     	void* RawPtr = nullptr;
+		std::shared_ptr<void> SharedPtr = nullptr;
 #if ToLuauDebug
     	const char* DebugName = "NULL";
 #endif
@@ -28,19 +32,52 @@ namespace ToLuau
     {
         T* GetValue() const
         {
-            return reinterpret_cast<T*>(RawPtr);
+        	if(SharedPtr)
+        	{
+        		return static_cast<T*>(SharedPtr.get());
+        	}
+        	else if(RawPtr)
+        	{
+        		return static_cast<T*>(RawPtr);
+        	}
+            return nullptr;
         }
 
-		~UserData()
+    	void SetValue(const T* Value)
         {
-        	auto RealValue = GetValue();
-        	if(RealValue != nullptr)
-        	{
-        		RawPtr = nullptr;
+        	SharedPtr = nullptr;
+        	RawPtr = static_cast<void*>(const_cast<RawClass_T<T>*>(Value));
+        }
+
+    	void SetValue(T Value)
+        {
+        	RawPtr = nullptr;
+	        std::shared_ptr<T> SharedValue = std::make_shared<T>(Value);
+        	SharedPtr = SharedValue;
+        }
+
+    	bool IsValid() const
+        {
+	        return RawPtr != nullptr || SharedPtr != nullptr;
+        }
+    	
+    	void SetDebugName(const char* InDebugName)
+        {
+	        DebugName = InDebugName;
+        }
+
+    	std::string GetName() const
+        {
+			return GetClassName<T>();
+        }
+
+        virtual ~UserData() override
+        {
+        	RawPtr = nullptr;
+			SharedPtr = nullptr;
 #if ToLuauDebug
-        		DebugName = nullptr;
+        	DebugName = nullptr;
 #endif
-        	}
         }
 
     };
