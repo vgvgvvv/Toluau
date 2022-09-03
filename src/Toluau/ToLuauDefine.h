@@ -26,6 +26,10 @@
 	#define ToLuauDebug 1
 #endif
 
+#ifndef ToLuauTool
+	#define ToLuauTool 0
+#endif
+
 namespace ToLuau
 {
 	using luau_int64 = long long;
