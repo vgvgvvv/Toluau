@@ -9,6 +9,7 @@
 #include <optional>
 #include <functional>
 #include <stdexcept>
+#include <memory>
 
 #include "Toluau/ToLuauDefine.h"
 

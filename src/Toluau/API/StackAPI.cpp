@@ -644,7 +644,8 @@ namespace ToLuau
 				ScriptStruct->InitializeStruct(NewStruct);
 				ScriptStruct->CopyScriptStruct(NewStruct, Params);
 
-				auto ClassName = StringEx::FStringToStdString(ScriptStruct->GetName());
+				std::string ClassName = GetUStructName(ScriptStruct);
+				
 				// set metatable
 				if(!HasMetaTable(L, ClassName))
 				{
@@ -679,6 +680,11 @@ namespace ToLuau
 				auto P = CastField<FClassProperty>(Prop);
 				TOLUAU_ASSERT(P != nullptr);
 				auto Value = P->GetPropertyValue(Params);
+				if(!Value || !IsValid(Value))
+				{
+					lua_pushnil(L);
+					return 1;
+				} 
 				StackAPI::Push(L, Value);
 				return 1;
 			}
@@ -697,6 +703,11 @@ namespace ToLuau
 				auto P = CastField<FObjectProperty>(Prop);
 				TOLUAU_ASSERT(P != nullptr);
 				UObject* Obj = P->GetPropertyValue(Params);
+				if(!Obj || !IsValid(Obj))
+				{
+					lua_pushnil(L);
+					return 1;
+				} 
 				StackAPI::Push(L, Obj);
 				return 1;
 			}

@@ -647,9 +647,12 @@ namespace ToLuau
 					lua_pushnil(L);
 				}
 				auto ClassName = ToLuau::GetClassName<T>(Value);
-				UserData<T>* NewUserData = static_cast<UserData<T>*>(lua_newuserdatatagged(L, sizeof(UserData<T>), UD_TAG(RawPtr)));
 
-				NewUserData->SetValue(Value);
+				UserData Temp;
+				void* p = static_cast<UserData*>(lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(RawPtr)));
+				memcpy(p, &Temp, sizeof(Temp));
+				auto NewUserData = static_cast<UserData*>(p);
+				NewUserData->SetValue<T>(Value);
 #if ToLuauDebug
 				NewUserData->SetDebugName(ClassName.c_str());
 #endif 	
@@ -662,11 +665,11 @@ namespace ToLuau
 			{
 				if (void* RawPtr = lua_touserdatatagged(L, Pos, UD_TAG(RawPtr)))
 				{
-					return static_cast<UserData<T>*>(RawPtr)->GetValue();
+					return static_cast<UserData*>(RawPtr)->GetValue<T>();
 				}
 				else if (void* RawValue = lua_touserdatatagged(L, Pos, UD_TAG(RawValue)))
 				{
-					return static_cast<UserData<T>*>(RawValue)->GetValue();
+					return static_cast<UserData*>(RawValue)->GetValue<T>();
 				}
 				else if (void* StdSharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(StdSharedPtr)))
 				{
@@ -1236,9 +1239,12 @@ namespace ToLuau
 			int32_t PushRawValue(lua_State* L, T Value, lua_CFunction SetupMetatable)
 			{
 				auto ClassName = ToLuau::GetClassName<T>(nullptr);
-				UserData<T>* NewUserData = static_cast<UserData<T>*>(lua_newuserdatatagged(L, sizeof(UserData<T>), UD_TAG(RawValue)));
 
-				NewUserData->SetValue(Value);
+				UserData Temp;
+				void* p = static_cast<UserData*>(lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(RawValue)));
+				memcpy(p, &Temp, sizeof(Temp));
+				auto NewUserData = static_cast<UserData*>(p);
+				NewUserData->SetValue<T>(Value);
 #if ToLuauDebug
 				NewUserData->SetDebugName(ClassName.c_str());
 #endif 	
@@ -1251,11 +1257,11 @@ namespace ToLuau
 			{
 				if (void* RawPtr = lua_touserdatatagged(L, Pos, UD_TAG(RawPtr)))
 				{
-					return *static_cast<UserData<T>*>(RawPtr)->GetValue();
+					return *static_cast<UserData*>(RawPtr)->GetValue<T>();
 				}
 				if (void* RawValue = lua_touserdatatagged(L, Pos, UD_TAG(RawValue)))
 				{
-					return *static_cast<UserData<T>*>(RawValue)->GetValue();
+					return *static_cast<UserData*>(RawValue)->GetValue<T>();
 				}
 				else if (void* StdSharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(StdSharedPtr)))
 				{

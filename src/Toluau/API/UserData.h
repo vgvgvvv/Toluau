@@ -15,23 +15,20 @@
 
 namespace ToLuau
 {
-
-    struct BaseUserData
+    struct UserData final
     {
-    protected:
-    	void* RawPtr = nullptr;
-		std::shared_ptr<void> SharedPtr = nullptr;
-#if ToLuauDebug
-    	const char* DebugName = "NULL";
-#endif
-        virtual ~BaseUserData() = default;
-    };
+    	UserData()
+    		: SharedPtr(nullptr)
+    	{
+    	}
 
-    template<typename T>
-    struct UserData : public BaseUserData
-    {
+    	template<typename T>
         T* GetValue() const
         {
+    		if(ClassName != GetClassName<T>())
+    		{
+    			return nullptr;
+    		}
         	if(SharedPtr)
         	{
         		return static_cast<T*>(SharedPtr.get());
@@ -43,17 +40,21 @@ namespace ToLuau
             return nullptr;
         }
 
+    	template<typename T>
     	void SetValue(const T* Value)
         {
-        	SharedPtr = nullptr;
+    		SharedPtr.reset();
         	RawPtr = static_cast<void*>(const_cast<RawClass_T<T>*>(Value));
+    		ClassName = GetClassName<T>(Value);
         }
 
+    	template<typename T>
     	void SetValue(T Value)
         {
         	RawPtr = nullptr;
 	        std::shared_ptr<T> SharedValue = std::make_shared<T>(Value);
         	SharedPtr = SharedValue;
+    		ClassName = GetClassName<T>(&Value);
         }
 
     	bool IsValid() const
@@ -68,10 +69,10 @@ namespace ToLuau
 
     	std::string GetName() const
         {
-			return GetClassName<T>();
+			return ClassName;
         }
 
-        virtual ~UserData() override
+    	~UserData()
         {
         	RawPtr = nullptr;
 			SharedPtr = nullptr;
@@ -79,7 +80,11 @@ namespace ToLuau
         	DebugName = nullptr;
 #endif
         }
-
+    private:
+    	const char* DebugName = "";
+    	std::shared_ptr<void> SharedPtr;
+    	void* RawPtr = nullptr;
+    	std::string ClassName;
     };
 
     struct LuaRef

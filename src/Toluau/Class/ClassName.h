@@ -380,5 +380,35 @@ namespace ToLuau
 		return GetClassNameWrapper<typename RawClass<T>::Type>::GetName(Obj);
 	}
 
+#ifdef TOLUAUUNREAL_API
+	static std::string GetUStructName(UStruct* Struct)
+	{
+		std::string ClassName;
+		if(Struct->IsNative())
+		{
+			ClassName = StringEx::FStringToStdString(Struct->GetPrefixCPP() + Struct->GetName());
+		}
+		else
+		{
+			ClassName = StringEx::FStringToStdString(Struct->GetName());
+		}
+		return ClassName;
+	}
+
+	static std::string GetUClassName(UClass* Class)
+	{
+		std::string ClassName;
+		if(Class->IsNative())
+		{
+			ClassName = StringEx::FStringToStdString(Class->GetPrefixCPP() + Class->GetName());
+		}
+		else
+		{
+			ClassName = StringEx::FStringToStdString(Class->GetName());
+		}
+		return ClassName;
+	}
+#endif
+	
 }
 

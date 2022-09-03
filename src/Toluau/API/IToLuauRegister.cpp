@@ -1184,10 +1184,12 @@ namespace ToLuau
 			{
 				BeginModule(StringEx::FStringToStdString(Splited[i]));
 			}
+			GetMetaData().PushEnum(StringEx::FStringToStdString(Splited.Last()));
 			BeginEnum(StringEx::FStringToStdString(Splited.Last()));
 		}
 		else
 		{
+			GetMetaData().PushEnum(StringEx::FStringToStdString(EnumName));
 			BeginEnum(StringEx::FStringToStdString(EnumName));
 		}
 		
@@ -1206,16 +1208,19 @@ namespace ToLuau
 			if(SubEnumName.Split(TEXT("::"), &Left, &Right))
 			{
 				lua_pushstring(L, TCHAR_TO_ANSI(*Right)); // enumname table metatable name
+				GetMetaData().RegVar(true, GetClassName<int32>(), TCHAR_TO_ANSI(*Right));
 			}
 			else
 			{
 				lua_pushstring(L, TCHAR_TO_ANSI(*SubEnumName)); // enumname table metatable name
+				GetMetaData().RegVar(true, GetClassName<int32>(), TCHAR_TO_ANSI(*SubEnumName));
 			}
 			lua_pushinteger(L, static_cast<int32_t>(Value)); // enumname table metatable name value
 			lua_rawset(L, -3); // enumname table metatable
 		}
 		
 		EndEnum();
+		GetMetaData().Pop();
 		if(HasNameSpace)
 		{
 			for(int i = 0; i < Splited.Num() - 1; i ++)
