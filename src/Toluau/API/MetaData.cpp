@@ -200,12 +200,12 @@ namespace ToLuau
 		Scope->RegFunction(MetaData);
     }
 
-#ifdef TOLUAUUNREAL_API
-
 	const NamespaceMetaData* LuaMetaData::GetGlobalMetaData() const
 	{
 		return GlobalMetaData.get();
 	}
+
+#ifdef TOLUAUUNREAL_API
 
 	void LuaMetaData::RegAllUEClass()
 	{

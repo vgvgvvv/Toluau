@@ -1,6 +1,7 @@
 ﻿#include "ToLuauVar.h"
 #include <cassert>
-#include "ToLuau/Util/Util.h"
+#include <cmath>
+#include "Toluau/Util/Util.h"
 #include "Toluau/API/ToLuauLib.h"
 
 

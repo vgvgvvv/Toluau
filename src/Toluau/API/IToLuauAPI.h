@@ -7,8 +7,8 @@
 
 #include "lua.h"
 #include "Arg.h"
-#include "ToLuau/API/ToLuauLib.h"
-#include "ToLuau/API/StackAPI.h"
+#include "Toluau/API/ToLuauLib.h"
+#include "Toluau/API/StackAPI.h"
 #include "Toluau/API/ScopeHelper.h"
 #include "Toluau/ToLuau.h"
 

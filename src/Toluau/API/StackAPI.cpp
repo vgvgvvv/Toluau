@@ -4,6 +4,7 @@
 
 #include "StackAPI.h"
 
+#include <cmath>
 #include "lua.h"
 
 #include "Toluau/ToLuau.h"
@@ -278,7 +279,7 @@ namespace ToLuau
 			lua_pushcfunction(
 				L,
 				[](lua_State* L) {
-					pushInt64(L, int64_t(pow(double(getInt64(L, 1)), double(getInt64(L, 2)))));
+					pushInt64(L, int64_t(std::pow(double(getInt64(L, 1)), double(getInt64(L, 2)))));
 					return 1;
 				},
 				nullptr);
