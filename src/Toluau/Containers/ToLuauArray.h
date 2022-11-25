@@ -50,7 +50,7 @@ namespace ToLuau
 		}
 
 		static int32 SetupMetaTable(lua_State* L);
-		static int Ctor(lua_State* L);
+		static int32 Ctor(lua_State* L);
 		static int32 Pairs(lua_State* L);
 		static int32 Enumerable(lua_State* L);
 		static int32 Num(lua_State* L);
@@ -60,6 +60,7 @@ namespace ToLuau
 		static int32 Insert(lua_State* L);
 		static int32 RemoveAt(lua_State* L);
 		static int32 Empty(lua_State* L);
+		static int32 ToTable(lua_State* L);
 
 	private:
 		int32 Num() const;
@@ -103,6 +104,11 @@ namespace ToLuau
 		{
 			SharedArray = MakeShared<TArray<T>>(Value);
 		}
+		
+		ToLuauRawArray(TSharedPtr<TArray<T>> Value)
+		{
+			SharedArray = Value;
+		}
 
 		TArray<T>* GetRawArrayPointer()
 		{
@@ -126,7 +132,7 @@ namespace ToLuau
 		{
 			return GetRawArrayPointer() != nullptr;
 		}
-		
+
 		static int32 Pairs(lua_State* L);
 		static int32 Enumerable(lua_State* L);
 		static int32 Num(lua_State* L);
@@ -136,6 +142,7 @@ namespace ToLuau
 		static int32 Insert(lua_State* L);
 		static int32 RemoveAt(lua_State* L);
 		static int32 Empty(lua_State* L);
+		static int32 ToTable(lua_State* L);
 		static int32_t SetupMetaTable(lua_State* L);
 
 	private:
@@ -161,7 +168,7 @@ namespace ToLuau
 	};
 
 	DEFINE_LUA_TEMPLATE_CLASS_NAME_OneParam(ToLuauRawArrayEnumerator)
-
+	
 	template <typename T>
 	int32 ToLuauRawArray<T>::Pairs(lua_State* L)
 	{
@@ -336,6 +343,27 @@ namespace ToLuau
 		return 0;
 	}
 
+	template <typename T> int32
+	ToLuauRawArray<T>::ToTable(lua_State* L)
+	{
+		TSharedPtr<ToLuauRawArray<T>> UD = StackAPI::Check<TSharedPtr<ToLuauRawArray<T>>>(L, 1);
+		if(!UD)
+		{
+			lua_pushnil(L);
+			return 1;
+		}
+		TArray<T>* RawArray = UD->GetRawArrayPointer();
+		int Index = 1;
+		lua_newtable(L);
+		for(const auto& Value : *RawArray)
+		{
+			StackAPI::Push(L, Value);
+			lua_rawseti(L, -2, Index);
+			Index++;
+		}
+		return 1;
+	}
+
 	template <typename T>
 	int32_t ToLuauRawArray<T>::SetupMetaTable(lua_State* L)
 	{
@@ -371,6 +399,9 @@ namespace ToLuau
 		
 		lua_pushcfunction(L, &ToLuauRawArray::Empty, "ToLuauRawArray::Empty");
 		lua_setfield(L, -2, "Empty");
+		
+		lua_pushcfunction(L, &ToLuauRawArray::ToTable, "ToLuauRawArray::ToTable");
+		lua_setfield(L, -2, "ToTable");
 		
 		return 0;
 	}
@@ -436,7 +467,20 @@ namespace ToLuau
 				{
 					if(lua_isnil(L, Pos))
 					{
-						return nullptr;
+						return {};
+					}
+					if(lua_istable(L, Pos))
+					{
+						TArray<T> Result;
+						lua_pushvalue(L, Pos);// ... table
+						lua_pushnil(L); // ... tabel nil
+						while (lua_next(L, -2))
+						{
+							Result.Add(StackOperatorWrapper<T>::Check(L, -1)); // ... table key value
+							lua_pop(L, 1); // ... table key
+						}
+						lua_pop(L, 1); // ...
+						return Result;
 					}
 					auto Result = StackOperatorWrapper<TSharedPtr<ToLuauRawArray<T>>>::Check(L, Pos);
 					return *Result->GetRawArrayPointer();

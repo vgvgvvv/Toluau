@@ -6,6 +6,10 @@
 #include "Toluau/ToLuauDefine.h"
 
 #define DEFINE_LUA_CLASS_NAME(ClassName) \
+static_assert(!HasStaticHoYoClass<ClassName>::Value); \
+static_assert(!HasStaticClass<ClassName>::Value); \
+static_assert(!HasStaticStruct<ClassName>::Value); \
+static_assert(!HasStaticLuaClass<ClassName>::Value); \
 template<> \
 struct GetClassNameWrapper<ClassName> \
 { \
@@ -99,7 +103,6 @@ namespace ToLuau
 	struct GetClassNameWrapper<T, typename std::enable_if<
 		HasStaticHoYoClass<T>::Value
 		&& !HasStaticLuaClass<T>::Value
-		&& !HasStaticStruct<T>::Value
 		&& !TIsDerivedFrom<T, UObject>::Value>::type>;
 #endif
 
@@ -109,7 +112,12 @@ namespace ToLuau
 	struct GetClassNameWrapper<T, typename std::enable_if<HasStaticClass<T>::Value>::type>;
 
 	template<typename T>
-	struct GetClassNameWrapper<T, typename std::enable_if<HasStaticStruct<T>::Value && !HasStaticLuaClass<T>::Value>::type>;
+	struct GetClassNameWrapper<T, std::enable_if_t<HasStaticStruct<T>::Value
+	&& !HasStaticLuaClass<T>::Value
+#if LUAU_SUPPORT_HOYO_CLASS
+	&& !HasStaticHoYoClass<T>::Value
+#endif
+	>>;
 
 	template<typename T, ESPMode Mode>
 	struct GetClassNameWrapper<TSharedPtr<T, Mode>>;
@@ -146,6 +154,8 @@ namespace ToLuau
 	DEFINE_LUA_CLASS_NAME(FString)
 	DEFINE_LUA_CLASS_NAME(FName)
 	DEFINE_LUA_CLASS_NAME(FText)
+	DEFINE_LUA_CLASS_NAME(UObjectBase)
+	DEFINE_LUA_CLASS_NAME(UObjectBaseUtility)
 #endif
 
 	template<typename T>
@@ -178,7 +188,6 @@ namespace ToLuau
 	struct GetClassNameWrapper<T, typename std::enable_if<
 		HasStaticHoYoClass<T>::Value
 		&& !HasStaticLuaClass<T>::Value
-		&& !HasStaticStruct<T>::Value
 		&& !TIsDerivedFrom<T, UObject>::Value>::type>
 	{
 		using Type = T;
@@ -204,7 +213,15 @@ namespace ToLuau
 		using Type = T;
 		static std::string GetName(const void* Obj)
 		{
-			UClass* C = T::StaticClass();
+			UClass* C;
+			if(Obj)
+			{
+				C = static_cast<const UObject*>(Obj)->GetClass();
+			}
+			else
+			{
+				C = T::StaticClass();
+			}
 			if(C->IsNative())
 			{
 				if(!Obj)
@@ -225,7 +242,12 @@ namespace ToLuau
 	};
 	
 	template<typename T>
-	struct GetClassNameWrapper<T, typename std::enable_if<HasStaticStruct<T>::Value && !HasStaticLuaClass<T>::Value>::type>
+	struct GetClassNameWrapper<T, std::enable_if_t<HasStaticStruct<T>::Value
+	&& !HasStaticLuaClass<T>::Value
+#if LUAU_SUPPORT_HOYO_CLASS
+	&& !HasStaticHoYoClass<T>::Value
+#endif
+	>>
 	{
 		static constexpr bool IsValid = true;
 		static constexpr bool DefineByMacro = false;
@@ -336,13 +358,13 @@ namespace ToLuau
 			output += (GetClassName<typename RawClass<R>::Type>(nullptr));
 		}
 	};
-	
+
 	template<typename R, typename ...ARGS>
-	struct GetClassNameWrapper<TDelegate<R(ARGS...)>>
+	struct GetClassNameWrapper<R(*)(ARGS...)>
 	{
 		static constexpr bool IsValid = true;
 		static constexpr bool DefineByMacro = false;
-		using Type = TDelegate<R(ARGS...)>;
+		using Type = R(*)(ARGS...);
 		static std::string GetName(const void* Obj)
 		{
 			std::string Params;
@@ -357,6 +379,66 @@ namespace ToLuau
 				Return = "";
 			}
 			return "(" + Params +") -> (" + Return + ")";
+		}
+	};
+	
+	template<typename R, typename ...ARGS>
+	struct GetClassNameWrapper<R(ARGS...)>
+	{
+		static constexpr bool IsValid = true;
+		static constexpr bool DefineByMacro = false;
+		using Type = R(ARGS...);
+		static std::string GetName(const void* Obj)
+		{
+			return GetClassNameWrapper<R(*)(ARGS...)>::GetName(Obj);
+		}
+	};
+	
+	template<typename R, typename ...ARGS>
+	struct GetClassNameWrapper<TDelegate<R(ARGS...)>>
+	{
+		static constexpr bool IsValid = true;
+		static constexpr bool DefineByMacro = false;
+		using Type = TDelegate<R(ARGS...)>;
+		static std::string GetName(const void* Obj)
+		{
+			return GetClassNameWrapper<R(*)(ARGS...)>::GetName(Obj);
+		}
+	};
+
+	template<typename R, typename ...ARGS>
+	struct GetClassNameWrapper<TMulticastDelegate<R(ARGS...)>>
+	{
+		static constexpr bool IsValid = true;
+		static constexpr bool DefineByMacro = false;
+		using Type = TMulticastDelegate<R(ARGS...)>;
+		static std::string GetName(const void* Obj)
+		{
+			return GetClassNameWrapper<R(*)(ARGS...)>::GetName(Obj);
+		}
+	};
+
+	template<typename R, typename ...ARGS>
+	struct GetClassNameWrapper<TFunction<R(ARGS...)>>
+	{
+		static constexpr bool IsValid = true;
+		static constexpr bool DefineByMacro = false;
+		using Type = TFunction<R(ARGS...)>;
+		static std::string GetName(const void* Obj)
+		{
+			return GetClassNameWrapper<R(*)(ARGS...)>::GetName(Obj);
+		}
+	};
+
+	template<typename R, typename ...ARGS>
+	struct GetClassNameWrapper<std::function<R(ARGS...)>>
+	{
+		static constexpr bool IsValid = true;
+		static constexpr bool DefineByMacro = false;
+		using Type = std::function<R(ARGS...)>;
+		static std::string GetName(const void* Obj)
+		{
+			return GetClassNameWrapper<R(*)(ARGS...)>::GetName(Obj);
 		}
 	};
 
@@ -381,7 +463,7 @@ namespace ToLuau
 	}
 
 #ifdef TOLUAUUNREAL_API
-	static std::string GetUStructName(UStruct* Struct)
+	static std::string GetUStructName(const UStruct* Struct)
 	{
 		std::string ClassName;
 		if(Struct->IsNative())
@@ -395,7 +477,7 @@ namespace ToLuau
 		return ClassName;
 	}
 
-	static std::string GetUClassName(UClass* Class)
+	static std::string GetUClassName(const UClass* Class)
 	{
 		std::string ClassName;
 		if(Class->IsNative())

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "StackAPI.h"
 #include "Toluau/Util/Template.h"
 #include "Toluau/Containers/ToLuauVar.h"
@@ -220,6 +222,10 @@ namespace ToLuau
 		static int32_t LuaCFunction(lua_State* L)
 		{
 			void* P = StackAPI::Check<TOwner*>(L, 1);
+			if(P == nullptr)
+			{
+			    luaL_typeerrorL(L, 1, GetClassName<TOwner>().c_str());
+			}
 			using F = FunctionBind<decltype(&Invoke), Invoke, 2>;
 			return F::Invoke(L, P);
 		}
@@ -240,6 +246,10 @@ namespace ToLuau
 		static int32_t LuaCFunction(lua_State* L)
 		{
 			void* P = StackAPI::Check<TOwner*>(L, 1);
+			if(P == nullptr)
+			{
+				luaL_typeerrorL(L, 1, GetClassName<TOwner>().c_str());
+			}
 			using F = FunctionBind<decltype(&Invoke), Invoke, 2>;
 			return F::Invoke(L, P);
 		}
@@ -259,6 +269,10 @@ namespace ToLuau
 		static int32_t LuaCFunction(lua_State* L)
 		{
 			void* P = StackAPI::Check<TOwner*>(L, 1);
+			if(P == nullptr)
+			{
+				luaL_typeerrorL(L, 1, GetClassName<TOwner>().c_str());
+			}
 			using F = FunctionBind<decltype(&Invoke), Invoke, 2>;
 			return F::Invoke(L, P);
 		}
@@ -278,6 +292,10 @@ namespace ToLuau
 		static int32_t LuaCFunction(lua_State* L)
 		{
 			void* P = StackAPI::Check<TOwner*>(L, 1);
+			if(P == nullptr)
+			{
+				luaL_typeerrorL(L, 1, GetClassName<TOwner>().c_str());
+			}
 			using F = FunctionBind<decltype(&Invoke), Invoke, 2>;
 			return F::Invoke(L, P);
 		}
@@ -313,7 +331,7 @@ namespace ToLuau
 #ifdef TOLUAUUNREAL_API
 		typedef TFunction<ReturnType(ArgTypes...)> TFunctionType;
 #endif
-		inline static ReturnType invoke(lua_State* L, void* ptr, ArgTypes&& ... args)
+		inline static ReturnType Invoke(lua_State* L, void* ptr, ArgTypes&& ... args)
 		{
 			return Func != nullptr ? (*Func)(std::forward<ArgTypes>(args)...) : ReturnType();
 		}
@@ -326,11 +344,22 @@ namespace ToLuau
 			ToLuauVar LocalFunc(L, Pos);
 			if(LocalFunc.IsValid() && LocalFunc.IsFunction())
 			{
-				return [=](ArgTypes&& ... Args) -> ReturnType
+				if constexpr (!TIsSame<ReturnType, void>::Value)
 				{
-					ToLuauVar Result = LocalFunc.Call(std::forward<ArgTypes>(Args)...);
-					return Result.Get<ReturnType>();
-				};
+					return [=](ArgTypes&& ... Args) -> ReturnType
+					{
+						ToLuauVar Result = LocalFunc.Call(std::forward<ArgTypes>(Args)...);
+						return Result.Get<ReturnType>();
+					};
+				}
+				else
+				{
+					return [=](ArgTypes&& ... Args) -> void
+					{
+						LocalFunc.Call(std::forward<ArgTypes>(Args)...);
+					};
+				}
+				
 			}
 			else
 			{
@@ -345,11 +374,22 @@ namespace ToLuau
 			ToLuauVar LocalFunc(L, Pos);
 			if(LocalFunc.IsValid() && LocalFunc.IsFunction())
 			{
-				return [=](ArgTypes&& ... Args) -> ReturnType
+				if constexpr (!TIsSame<ReturnType, void>::Value)
 				{
-					ToLuauVar Result = LocalFunc.Call(std::forward<ArgTypes>(Args)...);
-					return Result.Get<ReturnType>();
-				};
+					return [=](ArgTypes&& ... Args) -> ReturnType
+					{
+						ToLuauVar Result = LocalFunc.Call(std::forward<ArgTypes>(Args)...);
+						return Result.Get<ReturnType>();
+					};
+				}
+				else
+				{
+					return [=](ArgTypes&& ... Args) -> void
+					{
+						LocalFunc.Call(std::forward<ArgTypes>(Args)...);
+					};
+				}
+				
 			}
 			else
 			{
@@ -367,7 +407,7 @@ namespace ToLuau
 	template<typename CallableType, typename ReturnType, typename ... ArgTypes>
 	int CallableExpand<CallableType, ReturnType, ArgTypes...>::LuaCFunction(lua_State* L)
 	{
-		return FunctionBind<decltype(&invoke), invoke, 1>::invoke(L, nullptr);
+		return FunctionBind<decltype(&Invoke), Invoke, 1>::Invoke(L, nullptr);
 	}
 
 	template<typename CallableType>
@@ -388,67 +428,4 @@ namespace ToLuau
 		typedef decltype(DeducePrototype(&CallableType::operator())) Prototype;
 	};
 
-	namespace StackAPI
-	{
-		namespace __DETAIL__
-		{
-			template<typename T>
-			struct StackOperatorWrapper<T, typename std::enable_if<std::is_function<T>::value>::type>
-			{
-				static int32_t Push(lua_State* L, const T& Value)
-				{
-					using BindType = typename LuaCallableBinding<T>::Prototype;
-					BindType::Func = &Value;
-					lua_pushcfunction(L, BindType::Func, "");
-					return 1;
-				}
-				
-				static T Check(lua_State* L, int32_t Pos)
-				{
-					using BindType = typename LuaCallableBinding<T>::Prototype;
-					return BindType::MakeStdFunction(L, Pos);
-				}
-			};
-
-#ifdef TOLUAUUNREAL_API
-			template<typename T>
-			struct StackOperatorWrapper<T, typename std::enable_if<TIsFunction<T>::Value>::type>
-			{
-				static int32_t Push(lua_State* L, const T& Value)
-				{
-					using BindType = typename LuaCallableBinding<T>::Prototype;
-					BindType::Func = &Value;
-					lua_pushcfunction(L, BindType::Func, "");
-					return 1;
-				}
-				
-				static T Check(lua_State* L, int32_t Pos)
-				{
-					using BindType = typename LuaCallableBinding<T>::Prototype;
-					return BindType::MakeTFunction(L, Pos);
-				}
-				
-			};
-#endif
-
-			template<typename Callable>
-			struct StackOperatorWrapper<Callable, typename std::enable_if<is_invocable<Callable>::value>::type>
-			{
-				static int32_t Push(lua_State* L, const Callable& Value)
-				{
-					using BindType = typename LuaCallableBinding<Callable>::Prototype;
-					BindType::Func = &Value;
-					lua_pushcfunction(L, BindType::Func, "");
-					return 1;
-				}
-				
-				static Callable Check(lua_State* L, int32_t Pos)
-				{
-					using BindType = typename LuaCallableBinding<Callable>::Prototype;
-					return BindType::MakeStdFunction(L, Pos);
-				}
-			};
-		}
-	}
-	
 }

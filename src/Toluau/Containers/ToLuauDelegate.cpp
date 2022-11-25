@@ -22,7 +22,7 @@ void UToLuauDelegate::EventTrigger()
 void UToLuauDelegate::ProcessEvent(UFunction* Function, void* Parms)
 {
 	ensure(LuaFunc != nullptr && UFunc != nullptr);
-	LuaFunc->CallByUFunction(Function, static_cast<uint8*>(Parms));
+	LuaFunc->CallByUFunction(UFunc, static_cast<uint8*>(Parms));
 }
 
 void UToLuauDelegate::BindFunction(lua_State* L, int32 Pos, UFunction* Func)
@@ -242,11 +242,15 @@ namespace ToLuau
 	}
 
 	LUAU_BEGIN_CLASS(ToLuauDelegate)
-		LUAU_CUSTOM_REG(ToLuauDelegate, SetupMetatable)
+	LUAU_CUSTOM_REG(ToLuauDelegate, SetupMetatable)
 	LUAU_REG_LUA_FUNC(ToLuauDelegate, Bind)
 	LUAU_REG_LUA_FUNC(ToLuauDelegate, Clear)
 	LUAU_END_CLASS(ToLuauDelegate)
-	
+
+	LUAU_BEGIN_CLASS(FDelegateHandle)
+	LUAU_REG_FUNC(FDelegateHandle, IsValid)
+	LUAU_REG_FUNC(FDelegateHandle, Reset)
+	LUAU_END_CLASS(FDelegateHandle)
 	
 }
 

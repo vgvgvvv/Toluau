@@ -9,20 +9,24 @@ namespace ToLuau
 	struct IntList
 	{
 	};
-
-	template<typename L, typename R>
-	struct Concat;
-
-	template<int... TL, int... TR>
-	struct Concat<IntList<TL...>, IntList<TR...>>
+	
+	namespace Detail
 	{
-		typedef IntList<TL..., TR...> type;
-	};
+		template<typename L, typename R>
+		struct Concat;
+
+		template<int... TL, int... TR>
+		struct Concat<IntList<TL...>, IntList<TR...>>
+		{
+			typedef IntList<TL..., TR...> type;
+		};
+	}
+	
 
 	template<int n>
 	struct MakeIntList_t
 	{
-		typedef typename Concat<typename MakeIntList_t<n - 1>::type, IntList<n - 1>>::type type;
+		typedef typename Detail::Concat<typename MakeIntList_t<n - 1>::type, IntList<n - 1>>::type type;
 	};
 
 	template<>
@@ -69,24 +73,6 @@ namespace ToLuau
 	{
 		typedef T* type;
 	};
-	
-	template <typename F, typename... Args>
-	struct is_invocable :
-		std::is_constructible<
-			std::function<void(Args ...)>,
-			std::reference_wrapper<typename std::remove_reference<F>::type>
-		>
-	{
-	};
-
-	template <typename R, typename F, typename... Args>
-	struct is_invocable_r :
-		std::is_constructible<
-			std::function<R(Args ...)>,
-			std::reference_wrapper<typename std::remove_reference<F>::type>
-		>
-	{
-	};
 
 // SFINAE test
 	template <typename T>
@@ -118,6 +104,13 @@ namespace ToLuau
 
 	public:
 		enum { Value = sizeof(test<T>(0)) == sizeof(char) };
+	};
+#else
+	template <typename T>
+	class HasStaticHoYoClass
+	{
+	public:
+		enum { Value = 0 };
 	};
 #endif
 
@@ -152,6 +145,19 @@ namespace ToLuau
 
 	public:
 		enum { Value = sizeof(test<T>(0)) == sizeof(char) };
+	};
+#else
+	template <typename T>
+	class HasStaticClass
+	{
+	public:
+		enum { Value = 0 };
+	};
+	template <typename T>
+	class HasStaticStruct
+	{
+	public:
+		enum { Value = 0 };
 	};
 #endif
 

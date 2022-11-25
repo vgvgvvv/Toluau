@@ -18,7 +18,7 @@ namespace ToLuau
 {
 	class ILuauState;
 
-	enum class MetatableEvent : uint8_t
+	enum class MetatableEvent
 	{
 		Index = 0,
 		NewIndex,
@@ -336,7 +336,7 @@ namespace ToLuau
 	public:
 
 		template<typename T>
-		bool GetAnyFromState(const std::string& FullName, T& Result)
+		bool GetAnyFromState(const std::string& FullName, T& Result, bool bAllowNotFound = false)
 		{
 			auto L = GetOwner()->GetState();
 			StackAPI::AutoStack AutoStack(L);
@@ -358,7 +358,10 @@ namespace ToLuau
 					if(lua_isnil(L, -1)) // ref nil
 					{
 						lua_pop(L, 2);
-						LUAU_ERROR_F("cannot find %s in gobal and loaded", TargetName.c_str())
+						if(!bAllowNotFound)
+						{
+							LUAU_ERROR_F("cannot find %s in gobal and loaded", TargetName.c_str())
+						}
 						return false;
 					}
 					else
@@ -384,7 +387,10 @@ namespace ToLuau
 				if(!lua_istable(L, -1)) // nil
 				{
 					lua_pop(L, 1); //
-					LUAU_ERROR_F("%s is not a table", TableName.c_str())
+					if(!bAllowNotFound)
+					{
+						LUAU_ERROR_F("%s is not a table", TableName.c_str())
+					}
 					return false;
 				}
 			
@@ -393,7 +399,10 @@ namespace ToLuau
 				if(lua_isnil(L, -1))  // table nil
 				{
 					lua_pop(L, 2);
-					LUAU_ERROR_F("cannot find %s in %s", TargetName.c_str(), TableName.c_str())
+					if(!bAllowNotFound)
+					{
+						LUAU_ERROR_F("cannot find %s in %s", TargetName.c_str(), TableName.c_str())
+					}
 					return false;
 				}
 

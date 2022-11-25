@@ -222,6 +222,25 @@ namespace ToLuau
 		return 0;
 	}
 
+	int32 ToLuauArray::ToTable(lua_State* L)
+	{
+		auto UD = StackAPI::Check<ToLuauArray*>(L, 1);
+		if(!UD)
+		{
+			lua_pushnil(L);
+			return 1;
+		}
+		uint8* Dest = UD->GetRawPtr(0);
+		lua_newtable(L);
+		for(int32 i = 0; i < UD->Array->Num(); i++, Dest += UD->Inner->ElementSize)
+		{
+			FProperty* Ele = UD->Inner;
+			StackAPI::UE::PushProperty(L, Ele, UD->GetRawPtr(i));
+			lua_rawseti(L, -2, i+1);
+		}
+		return 1;
+	}
+
 	void ToLuauArray::Clear()
 	{
 		if(!Inner)
@@ -322,6 +341,7 @@ namespace ToLuau
 	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, Insert, void(ToLuauArray::*)(int32, LuaAnyType));
 	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, RemoveAt, void(ToLuauArray::*)(int32));
 	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, Empty, void(ToLuauArray::*)());
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauArray, ToTable, LuaTableType(ToLuauArray::*)());
 	LUAU_END_CLASS(ToLuauArray)
 
 	LUAU_BEGIN_CLASS(ToLuauArrayEnumerator)

@@ -27,7 +27,7 @@ namespace ToLuau
 		virtual void RegVar(bool IsStatic, const std::string& TypeName, const std::string& VarName) override;
 		virtual void RegFunction(bool IsStatic, const std::string& FunctionName, const FunctionGroupMetaData& FunctionInfo) override;
 		virtual void RegFunction(std::shared_ptr<FunctionGroupMetaData> MetaData) override;
-    	
+
 		public:
     	
 		virtual const NamespaceMetaData* GetGlobalMetaData() const override;
@@ -35,7 +35,7 @@ namespace ToLuau
 #ifdef TOLUAUUNREAL_API
 		virtual void RegAllUEClass() override;
 		virtual ClassMetaData& PushUEClass(UClass* Class) override;
-		virtual ClassMetaData& PushUEStruct(UScriptStruct* Struct) override;
+		virtual ClassMetaData& PushUEStruct(UStruct* Struct) override;
 		virtual void ExportClassProperties(UStruct* Class) override;
 		virtual void ExportClassFunctions(UStruct* Class) override;
 		virtual void RegAllUEEnum() override;
@@ -64,7 +64,7 @@ namespace ToLuau
 #ifdef TOLUAUUNREAL_API
 		virtual void RegAllUEClass() override {}
 		virtual ClassMetaData& PushUEClass(UClass* Class) override { static ClassMetaData Meta; return Meta; }
-		virtual ClassMetaData& PushUEStruct(UScriptStruct* Struct) override { static ClassMetaData Meta; return Meta; }
+		virtual ClassMetaData& PushUEStruct(UStruct* Struct) override { static ClassMetaData Meta; return Meta; }
 		virtual void ExportClassProperties(UStruct* Class) override {}
 		virtual void ExportClassFunctions(UStruct* Class) override {}
 		virtual void RegAllUEEnum() override{}
@@ -206,7 +206,7 @@ namespace ToLuau
 	}
 
 #ifdef TOLUAUUNREAL_API
-
+	
 	void LuaMetaData::RegAllUEClass()
 	{
 		TArray<UObject*> Structs;
@@ -291,7 +291,7 @@ namespace ToLuau
 		}
 	}
 
-	ClassMetaData& LuaMetaData::PushUEStruct(UScriptStruct* Struct)
+	ClassMetaData& LuaMetaData::PushUEStruct(UStruct* Struct)
 	{
 		UScriptStruct* SuperStruct = Cast<UScriptStruct>(Struct->GetSuperStruct());
 		if(SuperStruct) 
@@ -300,11 +300,12 @@ namespace ToLuau
 			ExportClassProperties(SuperStruct);
 			ExportClassFunctions(SuperStruct);
 			Pop();
-			return PushClass(StringEx::FStringToStdString(Struct->GetStructCPPName()), StringEx::FStringToStdString(SuperStruct->GetStructCPPName())); 
+			
+			return PushClass(StringEx::FStringToStdString(Struct->GetPrefixCPP() + Struct->GetName()), StringEx::FStringToStdString(SuperStruct->GetStructCPPName())); 
 		}
 		else
 		{
-			return PushClass(StringEx::FStringToStdString(Struct->GetStructCPPName()), ""); 
+			return PushClass(StringEx::FStringToStdString(Struct->GetPrefixCPP() + Struct->GetName()), ""); 
 		}
 	}
 
@@ -312,7 +313,7 @@ namespace ToLuau
 	{
 		for (TFieldIterator<FProperty> Iterator(Class); Iterator; ++Iterator)
 		{
-			if(Iterator->GetOwnerStruct() != Class)
+			if(Iterator->GetOwnerClass() != Class)
 			{
 				continue;
 			}
@@ -328,7 +329,7 @@ namespace ToLuau
 		TMap<FString, std::shared_ptr<FunctionGroupMetaData>> FunctionGroupMap;
 		for (TFieldIterator<UFunction> FunctionIt(Class); FunctionIt; ++FunctionIt)
 		{
-			if(FunctionIt->GetOwnerStruct() != Class && !FunctionIt->HasAllFunctionFlags(EFunctionFlags::FUNC_Static))
+			if(FunctionIt->GetOwnerClass() != Class && !FunctionIt->HasAllFunctionFlags(EFunctionFlags::FUNC_Static))
 			{
 				continue;
 			}

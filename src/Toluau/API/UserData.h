@@ -25,10 +25,6 @@ namespace ToLuau
     	template<typename T>
         T* GetValue() const
         {
-    		if(ClassName != GetClassName<T>())
-    		{
-    			return nullptr;
-    		}
         	if(SharedPtr)
         	{
         		return static_cast<T*>(SharedPtr.get());
@@ -39,6 +35,19 @@ namespace ToLuau
         	}
             return nullptr;
         }
+
+    	void* GetRawPtr() const
+    	{
+    		if(SharedPtr)
+    		{
+    			return static_cast<void*>(SharedPtr.get());
+    		}
+    		else if(RawPtr)
+    		{
+    			return static_cast<void*>(RawPtr);
+    		}
+    		return nullptr;
+    	}
 
     	template<typename T>
     	void SetValue(const T* Value)

@@ -177,6 +177,7 @@ namespace ToLuau
 		template<typename K, typename V>
 		void SetToTable(K Key, V Value)
 		{
+			TOLUAU_ASSERT(OwnerState != nullptr)
 			TOLUAU_ASSERT(IsTable());
 			Push();
 			StackAPI::Push(OwnerState, Key);
@@ -194,6 +195,7 @@ namespace ToLuau
 
 		ToLuauVar Return(int32_t RetN) const
 		{
+			TOLUAU_ASSERT(OwnerState != nullptr)
 			TOLUAU_ASSERT(RetN >= 0);
 			if(RetN == 0)
 			{
@@ -209,6 +211,7 @@ namespace ToLuau
 		template<typename ...ARGS>
 		ToLuauVar Call(ARGS&&... args) const
 		{
+			TOLUAU_ASSERT(OwnerState != nullptr)
 #if UE_EDITOR
 			try
 			{
@@ -419,6 +422,7 @@ namespace ToLuau
 		template<typename T>
 		T Get()
 		{
+			TOLUAU_ASSERT(OwnerState != nullptr)
 			Push();
 			T Ret = StackAPI::Check<typename remove_cr<T>::type>(OwnerState, -1);
 			lua_pop(OwnerState, 1);

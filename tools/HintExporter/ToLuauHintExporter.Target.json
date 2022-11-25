@@ -19,12 +19,12 @@
 
 ],
   "private_source" : [
-"E:/Documents/MyProjects/Toluau/tools/HintExporter/EmmyLuaExporter.cpp",
-"E:/Documents/MyProjects/Toluau/tools/HintExporter/EmmyLuaExporter.h",
-"E:/Documents/MyProjects/Toluau/tools/HintExporter/ILuaExporter.cpp",
-"E:/Documents/MyProjects/Toluau/tools/HintExporter/ILuaExporter.h",
-"E:/Documents/MyProjects/Toluau/tools/HintExporter/LuauTypeFileExporter.cpp",
-"E:/Documents/MyProjects/Toluau/tools/HintExporter/main.cpp"
+"E:/MyProjects/Toluau/tools/HintExporter/EmmyLuaExporter.cpp",
+"E:/MyProjects/Toluau/tools/HintExporter/EmmyLuaExporter.h",
+"E:/MyProjects/Toluau/tools/HintExporter/ILuaExporter.cpp",
+"E:/MyProjects/Toluau/tools/HintExporter/ILuaExporter.h",
+"E:/MyProjects/Toluau/tools/HintExporter/LuauTypeFileExporter.cpp",
+"E:/MyProjects/Toluau/tools/HintExporter/main.cpp"
 ],
   
   "public_compile_options" : [

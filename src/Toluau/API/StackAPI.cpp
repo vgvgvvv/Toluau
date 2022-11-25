@@ -4,7 +4,6 @@
 
 #include "StackAPI.h"
 
-#include <cmath>
 #include "lua.h"
 
 #include "Toluau/ToLuau.h"
@@ -14,6 +13,7 @@
 #include "Toluau/Containers/ToLuauArray.h"
 #include "Toluau/Containers/ToLuauMap.h"
 #include "Toluau/Containers/ToLuauDelegate.h"
+#include "Toluau/Containers/ToLuauStrcut.h"
 
 #define UD_TAG(Tag) static_cast<int32_t>(UserDataType::Tag)
 
@@ -26,10 +26,33 @@ namespace ToLuau
 #if LUAU_SUPPORT_HOYO_CLASS
 		namespace HoYoClass
 		{
-			TMap<FHoYoClass, PushFunc> HoYoClassRegisterPushFuncMap;
-			TMap<FHoYoClass, CheckFunc> HoYoClassRegisterCheckFuncMap;
+			TMap<FName, PushFunc> HoYoClassRegisterPushFuncMap;
+			TMap<FName, CheckFunc> HoYoClassRegisterCheckFuncMap;
 		}
 #endif
+
+		std::string UserDataTypeNames[]
+		{
+			"None",
+			"Int64",
+			"UInt64",
+			"RawPtr",
+			"RawValue",
+			"StdSharedPtr",
+			"StdWeakPtr",
+
+#ifdef TOLUAUUNREAL_API
+			"UEStruct",
+			"UESharedPtr",
+			"UEWeakPtr",
+			"UESharedThreadSafePtr",
+			"UEWeakThreadSafePtr",
+			"UEObjStrongPtr",
+			"UEObjWeakPtr",
+			"UObjectRawPtr",
+#endif
+			"Max"
+		};
 		
 		int InstanceIndexSelf(lua_State* L)
 		{
@@ -48,37 +71,88 @@ namespace ToLuau
 			return 0;
 		}
 		
-		int32_t SetClassMetaTable(lua_State *L, std::string& ClassName, lua_CFunction SetupMetaTable) // ud
+#ifdef TOLUAUUNREAL_API
+		int32_t GetClassMetaRef(lua_State* L, const UStruct* Struct)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRefByUStruct(Struct);
+			return ClassRef;
+		}
+		
+		int32_t GetClassMetaRef(lua_State* L, const UClass* Class)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRefByUClass(Class);
+			return ClassRef;
+		}
+#endif
+		int32_t GetClassMetaRef(lua_State* L, const ToLuau::Class* Class)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRefByLuaClass(Class);
+			return ClassRef;
+		}
+		
+		int32_t GetClassMetaRef(lua_State* L, const std::string& ClassName)
 		{
 			auto Owner = ILuauState::GetByRawState(L);
 			auto ClassRef = Owner->GetRegister().GetClassMetaRef(ClassName);
+			return ClassRef;
+		}
+#if LUAU_SUPPORT_HOYO_CLASS
+		int32_t GetClassMetaRef(lua_State* L, const FHoYoClass* Class)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRefByHoYoClass(Class);
+			return ClassRef;
+		}
+#endif
+
+		int32_t SetExternalClassMetaTableInternal(lua_State* L, std::string& ClassName, int32_t ClassRef, lua_CFunction SetupMetaTable, bool bDontRegisterMetatable)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			
+			lua_newtable(L); // ud table
+				
+			SetupMetaTable(L);
+
+			lua_pushstring(L, "__type"); // ud table __type
+			lua_pushstring(L, ClassName.c_str()); // ud table __type name
+			lua_rawset(L, -3); // ud table
+
+			if(ClassRef <= 0 && !bDontRegisterMetatable)
+			{
+				auto Ref = lua_ref(L, -1);
+				Owner->GetRegister().SetClassMetaRef(ClassName, Ref);
+			}
+			
+			lua_setmetatable(L, -2); // ud
+
+			return 1;
+		}
+
+		int32_t SetClassMetaTable(lua_State *L, std::string& ClassName, lua_CFunction SetupMetaTable, bool bDontRegisterMetatable) // ud
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRef(ClassName);
+			
+			if(SetupMetaTable != nullptr)
+			{
+				return SetExternalClassMetaTableInternal(L, ClassName, ClassRef, SetupMetaTable, bDontRegisterMetatable);
+			}
+			
 			if(ClassRef > 0)
 			{
 				lua_getref(L, ClassRef); // ud meta
 				lua_setmetatable(L, -2); // ud
+				return 1;
 			}
-			else if(SetupMetaTable != nullptr)
-			{
-				lua_newtable(L); // ud table
-				
-				SetupMetaTable(L);
-
-				lua_pushstring(L, "__type"); // ud table __type
-				lua_pushstring(L, ClassName.c_str()); // ud table __type name
-				lua_rawset(L, -3); // ud table
-				
-				auto Ref = lua_ref(L, -1);
-				Owner->GetRegister().SetClassMetaRef(ClassName, Ref);
-				lua_setmetatable(L, -2); // ud
-			}
-			else
-			{
-				luaL_errorL(L, "cannot find class meta ref %s", ClassName.c_str());
-			}
-			return 1;
+			
+			luaL_errorL(L, "cannot find class meta ref %s", ClassName.c_str());
 		}
 
-		bool HasMetaTable(lua_State* L, std::string& ClassName)
+		
+		bool HasMetaTable(lua_State* L, const std::string& ClassName)
 		{
 			auto Owner = ILuauState::GetByRawState(L);
 			auto ClassRef = Owner->GetRegister().GetClassMetaRef(ClassName);
@@ -86,8 +160,44 @@ namespace ToLuau
 		}
 
 #ifdef TOLUAUUNREAL_API
+		bool HasMetaTable(lua_State* L, const UStruct* Struct)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRefByUStruct(Struct);
+			return ClassRef > 0;
+		}
+		
+		bool HasMetaTable(lua_State* L, const UClass* Class)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRefByUClass(Class);
+			return ClassRef > 0;
+		}
+#endif
+
+#if LUAU_SUPPORT_HOYO_CLASS
+		bool HasMetaTable(lua_State* L, const FHoYoClass* Class)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRefByHoYoClass(Class);
+			return ClassRef > 0;
+		}
+#endif
+		
+		bool HasMetaTable(lua_State* L, const ToLuau::Class* Class)
+		{
+			auto Owner = ILuauState::GetByRawState(L);
+			auto ClassRef = Owner->GetRegister().GetClassMetaRefByLuaClass(Class);
+			return ClassRef > 0;
+		}
+
+#ifdef TOLUAUUNREAL_API
 		bool RegClass(lua_State* L, UClass* Class)
 		{
+			if(!Class)
+			{
+				return false;
+			}
 			const ILuauState* Owner = ILuauState::GetByRawState(L);
 			auto& Register = Owner->GetRegister();
 			Register.BeginModule("");
@@ -98,6 +208,10 @@ namespace ToLuau
 
 		bool RegStruct(lua_State* L, UScriptStruct* Struct)
 		{
+			if(!Struct)
+			{
+				return false;
+			}
 			const ILuauState* Owner = ILuauState::GetByRawState(L);
 			auto& Register = Owner->GetRegister();
 			Register.BeginModule("");
@@ -105,6 +219,7 @@ namespace ToLuau
 			Register.EndModule();
 			return true;
 		}
+		
 #endif
 
 
@@ -129,6 +244,7 @@ namespace ToLuau
 				if (lua_isnumber(L, idx))
 					return lua_tointeger(L, idx);
 
+				Lua::DumpStack(L, "type error");
 				luaL_typeerror(L, idx, "int64");
 			}
 
@@ -156,7 +272,10 @@ namespace ToLuau
 				[](lua_State* L) {
 					void* p = lua_touserdatatagged(L, 1, UD_TAG(Int64));
 					if (!p)
+					{
+						Lua::DumpStack(L, "type error");
 						luaL_typeerror(L, 1, "int64");
+					}
 
 					const char* name = luaL_checkstring(L, 2);
 
@@ -177,7 +296,10 @@ namespace ToLuau
 				[](lua_State* L) {
 					void* p = lua_touserdatatagged(L, 1, UD_TAG(Int64));
 					if (!p)
+					{
+						Lua::DumpStack(L, "type error");
 						luaL_typeerror(L, 1, "int64");
+					}
 
 					const char* name = luaL_checkstring(L, 2);
 
@@ -279,7 +401,7 @@ namespace ToLuau
 			lua_pushcfunction(
 				L,
 				[](lua_State* L) {
-					pushInt64(L, int64_t(std::pow(double(getInt64(L, 1)), double(getInt64(L, 2)))));
+					pushInt64(L, int64_t(pow(double(getInt64(L, 1)), double(getInt64(L, 2)))));
 					return 1;
 				},
 				nullptr);
@@ -306,6 +428,9 @@ namespace ToLuau
 				},
 				nullptr);
 			lua_setfield(L, -2, "__tostring");
+			
+			lua_pushstring(L, "int64");
+			lua_setfield(L, -2, "__type"); 
 
 			// ctor
 			lua_pushcfunction(
@@ -317,7 +442,7 @@ namespace ToLuau
 				},
 				"int64");
 			lua_setglobal(L, "int64");
-			return 0;
+			return 1;
 		}
 
 		namespace UInt64Detail
@@ -331,7 +456,8 @@ namespace ToLuau
 
 				if (lua_isnumber(L, idx))
 					return lua_tointeger(L, idx);
-
+				
+				Lua::DumpStack(L, "type error");
 				luaL_typeerror(L, idx, "uint64");
 			}
 
@@ -360,7 +486,10 @@ namespace ToLuau
 				[](lua_State* L) {
 					void* p = lua_touserdatatagged(L, 1, UD_TAG(UInt64));
 					if (!p)
+					{
+						Lua::DumpStack(L, "type error");
 						luaL_typeerror(L, 1, "uint64");
+					}
 
 					const char* name = luaL_checkstring(L, 2);
 
@@ -381,7 +510,10 @@ namespace ToLuau
 				[](lua_State* L) {
 					void* p = lua_touserdatatagged(L, 1, UD_TAG(UInt64));
 					if (!p)
+					{
+						Lua::DumpStack(L, "type error");
 						luaL_typeerror(L, 1, "uint64");
+					}
 
 					const char* name = luaL_checkstring(L, 2);
 
@@ -511,6 +643,9 @@ namespace ToLuau
 				nullptr);
 			lua_setfield(L, -2, "__tostring");
 
+			lua_pushstring(L, "uint64");
+			lua_setfield(L, -2, "__type");
+			
 			// ctor
 			lua_pushcfunction(
 				L,
@@ -521,7 +656,7 @@ namespace ToLuau
 				},
 				"uint64");
 			lua_setglobal(L, "uint64");
-			return 0;
+			return 1;
 		}
 
 		int32_t FindTable(lua_State* L, const std::string& FullName, bool bCreateIfNil)
@@ -631,8 +766,8 @@ namespace ToLuau
 			{
 				auto P = CastField<FEnumProperty>(Prop);
 				TOLUAU_ASSERT(P != nullptr);
-				auto Enum = StackAPI::Check<UEnum*>(L, i);
-				P->SetEnum(Enum);
+				auto Enum = (int64)StackAPI::Check<int32>(L, i);
+				P->CopyCompleteValue(Params, &Enum);
 				return 0;
 			}
 			
@@ -641,23 +776,7 @@ namespace ToLuau
 				auto P = CastField<FStructProperty>(Prop);
 				TOLUAU_ASSERT(P != nullptr);
 				UScriptStruct* ScriptStruct = P->Struct;
-				void* NewStruct = lua_newuserdatatagged(L, sizeof(ScriptStruct->GetStructureSize()), UD_TAG(UEStruct));
-				ScriptStruct->InitializeStruct(NewStruct);
-				ScriptStruct->CopyScriptStruct(NewStruct, Params);
-
-				std::string ClassName = GetUStructName(ScriptStruct);
-				
-				// set metatable
-				if(!HasMetaTable(L, ClassName))
-				{
-					RegStruct(L, ScriptStruct);
-				}
-				if(HasMetaTable(L, ClassName))
-				{
-					SetClassMetaTable(L, ClassName);
-				}
-				
-				return 1;
+				return StackAPI::UE::PushUEStruct(L, Params, ScriptStruct);
 			}
 
 			int32 CheckStructProperty(lua_State* L, FProperty* Prop, uint8* Params, int32 i)
@@ -665,12 +784,57 @@ namespace ToLuau
 				auto P = CastField<FStructProperty>(Prop);
 				TOLUAU_ASSERT(P != nullptr);
 				UScriptStruct* ScriptStruct = P->Struct;
-				if (void* Ptr = lua_touserdatatagged(L, i, UD_TAG(UEStruct)))
+				if (void* Ptr = StackAPI::UE::CheckUEStruct(L, i))
 				{
 					ScriptStruct->CopyScriptStruct(Params, Ptr);
 				}
+				else if(void* UserDataPtr = lua_touserdatatagged(L, i, UD_TAG(RawPtr)))
+				{
+					auto UserDataObj = static_cast<UserData*>(UserDataPtr);
+
+					check(UserDataObj)
+					
+					auto StructName = GetUStructName(ScriptStruct);
+					if(UserDataObj->GetName() != StructName)
+					{
+						luaL_typeerror(L, i, StructName.c_str());
+					}
+					
+					void* RawPtr = UserDataObj->GetRawPtr();
+					if(RawPtr != nullptr)
+					{
+						ScriptStruct->CopyScriptStruct(Params, RawPtr);
+					}
+					else
+					{
+						ScriptStruct->DestroyStruct(Params);
+					}
+				}
+				else if(void* UserDataValue = lua_touserdatatagged(L, i, UD_TAG(RawValue)))
+				{
+					auto UserDataObj = static_cast<UserData*>(UserDataValue);
+
+					check(UserDataObj)
+					
+					auto StructName = GetUStructName(ScriptStruct);
+					if(UserDataObj->GetName() != StructName)
+					{
+						luaL_typeerror(L, i, StructName.c_str());
+					}
+					
+					void* RawPtr = UserDataObj->GetRawPtr();
+					if(RawPtr != nullptr)
+					{
+						ScriptStruct->CopyScriptStruct(Params, RawPtr);
+					}
+					else
+					{
+						ScriptStruct->InitializeStruct(Params);
+					}
+				}
 				else
 				{
+					Lua::DumpStack(L, "type error");
 					luaL_typeerror(L, i, "UEStruct");
 				}
 				return 0;
@@ -873,6 +1037,7 @@ namespace ToLuau
 				}
 				else
 				{
+					Lua::DumpStack(L, "type error");
 					luaL_typeerrorL(L, i, "UToLuauDelegate");
 				}
 
@@ -1233,6 +1398,100 @@ namespace ToLuau
 				lua_pushcclosure(L, UEFunc::UFunctionClosure,
 					StringEx::FStringToStdString(Function->GetName()).c_str(), 2);
 				return 1;
+			}
+
+			int32_t PushUEStruct(lua_State* L, void* Source, UScriptStruct* StructType)
+			{
+				if(Source == nullptr)
+				{
+					lua_pushnil(L);
+					return 1;
+				}
+				
+				LuaUESharedPtr<ToLuauStruct> Temp;
+				void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(UEStruct));
+				memcpy(p, &Temp, sizeof(LuaUESharedPtr<ToLuauStruct>));
+
+				const LuaUESharedPtr<ToLuauStruct> Value = MakeShared<ToLuauStruct>(StructType);
+				Value->InitializeStruct();
+				Value->CopyScriptStruct(Source);
+				
+				std::string ClassName = GetUStructName(StructType);
+				if(!HasMetaTable(L, StructType))
+				{
+					RegStruct(L, StructType);
+				}
+				SetClassMetaTable(L, ClassName);
+				
+				*static_cast<LuaUESharedPtr<ToLuauStruct>*>(p) = Value;
+				return 1;
+			}
+
+			int32_t PushNewUEStruct(lua_State* L, UScriptStruct* StructType)
+			{
+				LuaUESharedPtr<ToLuauStruct> Temp;
+				void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(UEStruct));
+				memcpy(p, &Temp, sizeof(LuaUESharedPtr<ToLuauStruct>));
+
+				const LuaUESharedPtr<ToLuauStruct> Value = MakeShared<ToLuauStruct>(StructType);
+				Value->InitializeStruct();
+				
+				if(!HasMetaTable(L, StructType))
+				{
+					RegStruct(L, StructType);
+				}
+				auto ClassName = GetUStructName(StructType);
+				SetClassMetaTable(L, ClassName);
+				
+				*static_cast<LuaUESharedPtr<ToLuauStruct>*>(p) = Value;
+				return 1;
+			}
+
+			void* CheckUEStruct(lua_State* L, int32_t Pos, UScriptStruct* StructType)
+			{
+				if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(UEStruct)))
+				{
+					LuaUESharedPtr<ToLuauStruct> StructPtr = *static_cast<LuaUESharedPtr<ToLuauStruct>*>(UEStruct);
+					if(StructType == nullptr || StructPtr->GetType()->IsChildOf(StructType))
+					{
+						return StructPtr->Get();
+					}
+				}
+				if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(UESharedPtr)))
+				{
+					LuaUESharedPtr<void> StructPtr = *static_cast<LuaUESharedPtr<void>*>(UEStruct);
+					return StructPtr.Get();
+				}
+				if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(UESharedThreadSafePtr)))
+				{
+					LuaUESharedThreadSafePtr<void> StructPtr = *static_cast<LuaUESharedThreadSafePtr<void>*>(UEStruct);
+					return StructPtr.Get();
+				}
+				if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakPtr)))
+				{
+					LuaUEWeakPtr<void> StructPtr = *static_cast<LuaUEWeakPtr<void>*>(UEStruct);
+					if(StructPtr.IsValid())
+					{
+						return StructPtr.Pin().Get();
+					}
+				}
+				if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakThreadSafePtr)))
+				{
+					LuaUEWeakThreadSafePtr<void> StructPtr = *static_cast<LuaUEWeakThreadSafePtr<void>*>(UEStruct);
+					if(StructPtr.IsValid())
+					{
+						return StructPtr.Pin().Get();
+					}
+				}
+				if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(RawPtr)))
+				{
+					return static_cast<UserData*>(UEStruct)->GetRawPtr();
+				}
+				if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(RawValue)))
+				{
+					return static_cast<UserData*>(UEStruct)->GetRawPtr();
+				}
+				return nullptr;
 			}
 
 #pragma endregion 

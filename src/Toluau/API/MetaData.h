@@ -18,6 +18,11 @@ namespace ToLuau
 		DEFINE_LUA_CLASS(LuaAnyType)
 	};
 	
+	class LuaTableType final
+	{
+		DEFINE_LUA_CLASS(LuaTableType)
+	};
+	
     enum class ScopeType
     {
         Namespace,
@@ -342,7 +347,7 @@ namespace ToLuau
 #ifdef TOLUAUUNREAL_API
 		virtual void RegAllUEClass() = 0;
 		virtual ClassMetaData& PushUEClass(UClass* Class)  = 0;
-		virtual ClassMetaData& PushUEStruct(UScriptStruct* Struct)  = 0;
+		virtual ClassMetaData& PushUEStruct(UStruct* Struct)  = 0;
 		virtual void ExportClassProperties(UStruct* Class)  = 0;
 		virtual void ExportClassFunctions(UStruct* Class)  = 0;
 		virtual void RegAllUEEnum()  = 0;

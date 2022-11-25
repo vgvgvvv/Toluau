@@ -6,7 +6,8 @@
 #include "Toluau/API/StackAPI.h"
 #include "Toluau/Class/ClassName.h"
 #include "Toluau/Containers/ToLuauVar.h"
-#if TOLUAUUNREAL_API
+
+#ifdef TOLUAUUNREAL_API
 #include "ToLuauDelegate.generated.h"
 
 UCLASS()
@@ -15,23 +16,23 @@ class ToLuau_API UToLuauDelegate : public UObject
 	GENERATED_BODY()
 public:
 	virtual ~UToLuauDelegate() override;
-	
+
 	UFUNCTION(BlueprintCallable, Category="Lua|Delegate")
 	void EventTrigger();
-	
+
 	virtual void ProcessEvent(UFunction* Function, void* Parms) override;
 
 	void BindFunction(lua_State* L, int32 Pos, UFunction* Func);
 	void BindFunction(lua_State* L, int32 Pos);
 	void BindFunction(UFunction* Func);
 	void Dispose();
-	
+
 #if ToLuauDebug
 	FString DebugName;
 #endif
-	
+
 private:
-	
+
 	::ToLuau::ToLuauVar* LuaFunc;
 	UFunction* UFunc;
 };
@@ -156,24 +157,27 @@ namespace ToLuau
 	int32_t ToLuauBaseDelegate<R, ARGS...>::Bind(lua_State* L)
 	{
 		auto Delegate = StackAPI::Check<TSharedPtr<ToLuauBaseDelegate<R, ARGS...>>>(L, 1);
-		luaL_checktype(L, 2, LUA_TFUNCTION);
-		::ToLuau::ToLuauVar Func(L, 2);
-		if (Func.IsValid() && Func.IsFunction())
+		if(Delegate && Delegate->GetRawDelegatePtr())
 		{
-			if constexpr (!TIsSame<R, void>::Value)
+			luaL_checktype(L, 2, LUA_TFUNCTION);
+			::ToLuau::ToLuauVar Func(L, 2);
+			if (Func.IsValid() && Func.IsFunction())
 			{
-				Delegate->GetRawDelegatePtr()->BindLambda([=](ARGS ...args) {
-					::ToLuau::ToLuauVar Result = Func.Call(std::forward<ARGS>(args) ...);
-					return Result.Get<R>();
-				});
-			}
-			else
-			{
-				Delegate->GetRawDelegatePtr()->BindLambda([=](ARGS ...args) {
-					Func.Call(std::forward<ARGS>(args) ...);
-				});
-			}
+				if constexpr (!TIsSame<R, void>::Value)
+				{
+					Delegate->GetRawDelegatePtr()->BindLambda([=](ARGS ...args) {
+						::ToLuau::ToLuauVar Result = Func.Call(std::forward<ARGS>(args) ...);
+						return Result.Get<R>();
+					});
+				}
+				else
+				{
+					Delegate->GetRawDelegatePtr()->BindLambda([=](ARGS ...args) {
+						Func.Call(std::forward<ARGS>(args) ...);
+					});
+				}
 			
+			}
 		}
 		return 0;
 	}
@@ -182,7 +186,7 @@ namespace ToLuau
 	int32_t ToLuauBaseDelegate<R, ARGS...>::Clear(lua_State* L)
 	{
 		auto Delegate = StackAPI::Check<TSharedPtr<ToLuauBaseDelegate<R, ARGS...>>>(L, 1);
-		if(Delegate)
+		if(Delegate && Delegate->GetRawDelegatePtr())
 		{
 			Delegate->GetRawDelegatePtr()->Unbind();
 		}
@@ -215,7 +219,119 @@ namespace ToLuau
 			return GetClassNameWrapper<typename ToLuauBaseDelegate<R, ARGS...>::RawDelegateType>::GetName(Obj);
 		}
 	};
+
+	DEFINE_LUA_CLASS_NAME(FDelegateHandle)
 	
+	template<typename R, typename ...ARGS>
+	struct ToLuauBaseMulticastDelegate
+	{
+		using RawDelegateType = TMulticastDelegate<R(ARGS...)>;
+		using DelegateType = ToLuauBaseMulticastDelegate<R, ARGS...>;
+
+		ToLuauBaseMulticastDelegate(TMulticastDelegate<R(ARGS...)>* d);
+		
+		ToLuauBaseMulticastDelegate(TMulticastDelegate<R(ARGS...)> d);
+		
+		TMulticastDelegate<R(ARGS...)>* GetRawDelegatePtr() const;
+
+		TMulticastDelegate<R(ARGS...)>* RawDelegate = nullptr;
+		TSharedPtr<TMulticastDelegate<R(ARGS...)>> SharedDelegate;
+		
+		static int32_t Add(lua_State* L);
+
+		static int32_t Remove(lua_State* L);
+		
+		static int32_t Broadcast(lua_State* L);
+
+		static int32_t SetupMetaTable(lua_State* L);
+	};
+
+	template <typename R, typename ... ARGS>
+	ToLuauBaseMulticastDelegate<R, ARGS...>::ToLuauBaseMulticastDelegate(TMulticastDelegate<R(ARGS...)>* d)
+		: RawDelegate(d)
+		, SharedDelegate(nullptr)
+	{
+	}
+
+	template <typename R, typename ... ARGS>
+	ToLuauBaseMulticastDelegate<R, ARGS...>::ToLuauBaseMulticastDelegate(TMulticastDelegate<R(ARGS...)> d)
+		: RawDelegate(nullptr)
+	{
+		SharedDelegate = MakeShared<TDelegate<R(ARGS...)>>(d);
+	}
+
+	template <typename R, typename ... ARGS>
+	TMulticastDelegate<R(ARGS...)>* ToLuauBaseMulticastDelegate<R, ARGS...>::GetRawDelegatePtr() const
+	{
+		if(SharedDelegate)
+		{
+			return SharedDelegate.Get();
+		}
+		else if(RawDelegate)
+		{
+			return RawDelegate;
+		}
+		return nullptr;
+	}
+
+	template <typename R, typename ... ARGS>
+	int32_t ToLuauBaseMulticastDelegate<R, ARGS...>::Add(lua_State* L)
+	{
+		auto Delegate = StackAPI::Check<TSharedPtr<ToLuauBaseMulticastDelegate<R, ARGS...>>>(L, 1);
+		if(Delegate && Delegate->GetRawDelegatePtr())
+		{
+			luaL_checktype(L, 2, LUA_TFUNCTION);
+			::ToLuau::ToLuauVar Func(L, 2);
+			auto Handle = Delegate->GetRawDelegatePtr()->AddLambda([Func](ARGS ...args) {
+				Func.Call(std::forward<ARGS>(args) ...);
+			});
+			StackAPI::Push<FDelegateHandle>(L, Handle);
+		}
+		else
+		{
+			lua_pushnil(L);
+		}
+		return 1;
+	}
+
+	template <typename R, typename ... ARGS>
+	int32_t ToLuauBaseMulticastDelegate<R, ARGS...>::Remove(lua_State* L)
+	{
+		auto Delegate = StackAPI::Check<TSharedPtr<ToLuauBaseMulticastDelegate<R, ARGS...>>>(L, 1);
+		auto Handle = StackAPI::Check<FDelegateHandle>(L, 2);
+		if(Delegate && Delegate->GetRawDelegatePtr())
+		{
+			Delegate->GetRawDelegatePtr()->Remove(Handle);
+		}
+		return 0;
+	}
+	
+	template <typename R, typename ... ARGS>
+	int32_t ToLuauBaseMulticastDelegate<R, ARGS...>::SetupMetaTable(lua_State* L)
+	{
+		StackAPI::SetupMetaTableCommon(L);
+		// ud meta
+		lua_pushcfunction(L, &ToLuauBaseMulticastDelegate::Add, "ToLuauBaseDelegate::Add");
+		lua_setfield(L, -2, "Add");
+
+		lua_pushcfunction(L, &ToLuauBaseMulticastDelegate::Remove, "ToLuauBaseDelegate::Remove");
+		lua_setfield(L, -2, "Remove");
+			
+		return 0;
+	}
+	
+	template<typename R, typename ...ARGS>
+	struct GetClassNameWrapper<ToLuauBaseMulticastDelegate<R, ARGS...>>
+	{
+		static constexpr bool IsValid = true;
+		static constexpr bool DefineByMacro = false;
+		using Type = ToLuauBaseMulticastDelegate<R, ARGS...>;
+		static std::string GetName(const void* Obj)
+		{
+			return GetClassNameWrapper<typename ToLuauBaseMulticastDelegate<R, ARGS...>::RawDelegateType>::GetName(Obj);
+		}
+	};
+
 	namespace StackAPI
 	{
 		namespace __DETAIL__
@@ -231,7 +347,7 @@ namespace ToLuau
 					auto BaseDelegate = MakeShared<DelegateType>(Value);
 					auto ClassName = GetClassName<RawDelegateType>();
 
-					StackOperatorWrapper<TSharedPtr<DelegateType>>::Push(L, BaseDelegate, &DelegateType::SetupMetaTable);
+					StackOperatorWrapper<TSharedPtr<DelegateType>>::Push(L, BaseDelegate, &DelegateType::SetupMetaTable, true);
 					
 					return 1;
 				}
@@ -276,7 +392,7 @@ namespace ToLuau
 					auto BaseDelegate = MakeShared<DelegateType>(&Value);
 					auto ClassName = GetClassName<RawDelegateType>();
 
-					StackOperatorWrapper<TSharedPtr<DelegateType>>::Push(L, BaseDelegate, &DelegateType::SetupMetaTable);
+					StackOperatorWrapper<TSharedPtr<DelegateType>>::Push(L, BaseDelegate, &DelegateType::SetupMetaTable, true);
 					
 					return 1;
 				}
@@ -293,8 +409,16 @@ namespace ToLuau
 						ToLuauVar Func(L, Pos);
 						if constexpr (!TIsSame<R, void>::Value)
 						{
-							NewDelegate.BindLambda([Func](ARGS ...args) {
+							NewDelegate.BindLambda([Func](ARGS ...args) -> R {
 								ToLuauVar Result = Func.Call(std::forward<ARGS>(args) ...);
+								if(!Result.IsValid())
+								{
+									if constexpr (std::is_constructible_v<R>)
+									{
+										return R();
+									}
+									TOLUAU_ASSERT(false)
+								}
 								return Result.Get<R>();
 							});
 						}
@@ -314,6 +438,91 @@ namespace ToLuau
 
 			template<typename R, typename ...ARGS> struct BuildInPushValue<TDelegate<R(ARGS...)>> { static constexpr bool Value = true; };
 
+
+			template<typename R, typename ...ARGS>
+			struct StackOperatorWrapper<TMulticastDelegate<R(ARGS...)>*>
+			{
+				using RawDelegateType = TMulticastDelegate<R(ARGS...)>;
+				using DelegateType = ToLuauBaseMulticastDelegate<R, ARGS...>;
+				
+				static int32_t Push(lua_State* L, RawDelegateType* Value)
+				{
+					auto BaseDelegate = MakeShared<DelegateType>(Value);
+					auto ClassName = GetClassName<RawDelegateType>();
+
+					StackOperatorWrapper<TSharedPtr<DelegateType>>::Push(L, BaseDelegate, &DelegateType::SetupMetaTable, true);
+					
+					return 1;
+				}
+
+				static RawDelegateType* Check(lua_State* L, int32_t Pos)
+				{
+					if(lua_isnil(L, Pos))
+					{
+						static RawDelegateType Default;
+						return Default;
+					}
+					auto& Result = StackOperatorWrapper<TSharedPtr<DelegateType>>::Check(L, Pos);
+					return (Result->GetRawDelegatePtr());
+				}
+			};
+			
+			template<typename R, typename ...ARGS>
+			struct StackOperatorWrapper<TMulticastDelegate<R(ARGS...)>&>
+			{
+				using RawDelegateType = TMulticastDelegate<R(ARGS...)>;
+				using DelegateType = ToLuauBaseMulticastDelegate<R, ARGS...>;
+				
+				static int32_t Push(lua_State* L, RawDelegateType& Value)
+				{
+					return StackOperatorWrapper<TMulticastDelegate<R(ARGS...)>*>::Push(L, &Value);
+				}
+
+				static RawDelegateType& Check(lua_State* L, int32_t Pos)
+				{
+					return *StackOperatorWrapper<TMulticastDelegate<R(ARGS...)>*>::Check(L, Pos);
+				}
+			};
+			
+			template<typename R, typename ...ARGS>
+			struct StackOperatorWrapper<TMulticastDelegate<R(ARGS...)>>
+			{
+				using RawDelegateType = TMulticastDelegate<R(ARGS...)>;
+				using DelegateType = ToLuauBaseMulticastDelegate<R, ARGS...>;
+
+				static int32_t Push(lua_State* L, RawDelegateType& Value)
+				{
+					auto BaseDelegate = MakeShared<DelegateType>(&Value);
+					auto ClassName = GetClassName<RawDelegateType>();
+
+					StackOperatorWrapper<TSharedPtr<DelegateType>>::Push(L, BaseDelegate, &DelegateType::SetupMetaTable, true);
+					
+					return 1;
+				}
+				
+				static RawDelegateType Check(lua_State* L, int32_t Pos)
+				{
+					if(lua_isnil(L, Pos))
+					{
+						return {};
+					}
+					if(lua_isfunction(L, Pos))
+					{
+						RawDelegateType NewDelegate;
+						ToLuauVar Func(L, Pos);
+						NewDelegate.AddLambda([Func](ARGS ...args) {
+							Func.Call(std::forward<ARGS>(args) ...);
+						});
+						
+						return NewDelegate;
+					}
+					auto Result = StackOperatorWrapper<TSharedPtr<DelegateType>>::Check(L, Pos);
+					return *(Result->GetRawDelegatePtr());
+				}
+			};
+
+			template<typename R, typename ...ARGS> struct BuildInPushValue<TMulticastDelegate<R(ARGS...)>> { static constexpr bool Value = true; };
+			
 		}
 	}
 	

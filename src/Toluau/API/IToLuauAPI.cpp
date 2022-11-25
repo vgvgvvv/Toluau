@@ -166,7 +166,7 @@ namespace ToLuau
 		bool bIsClassFunc;
 		if (!GetFuncGlobal(FuncName, &bIsClassFunc))
 		{
-			LUAU_LOG_F("cannot find function", FuncName.c_str())
+			LUAU_LOG_F("cannot find function %s", FuncName.c_str())
 			return;
 		}
 

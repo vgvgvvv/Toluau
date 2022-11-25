@@ -6,6 +6,7 @@
 #include "Toluau/ToLuau.h"
 #include "ILuauChunkLoader.h"
 #include "IToLuauRegister.h"
+#include "StackAPI.h"
 #include "Toluau/Util/Util.h"
 
 namespace ToLuau
@@ -18,7 +19,7 @@ namespace ToLuau
 	int32_t TOLUAU_REQUIRE_REF = 25;
     int32_t TOLUAU_REGISTER_REF = 26;
 	int32_t TOLUAU_ERROR_HANDLER_REF = 27;
-
+	
 	namespace ToluauDefaultLibs
 	{
 		static int Log(lua_State* L)
@@ -112,6 +113,12 @@ namespace ToLuau
 				return 1;
 			}
 			auto Name = lua_tostring(L, -1);
+			
+			if(State->GetLoader().Require(Name))
+			{
+				return 1;
+			}
+			
 			FString ClassName = ANSI_TO_TCHAR(Name);
 			auto Class = FindClass(*ClassName);
 			if(!Class)
@@ -131,6 +138,139 @@ namespace ToLuau
 			State->GetLoader().Require(Name);
 			return 1;
 		}
+
+		static UScriptStruct* FindUStruct(const TCHAR* StuctName)
+		{
+			const bool bExactClass = true;
+			
+			UObject* ClassPackage = ANY_PACKAGE;
+
+			if (UScriptStruct* Result = FindObject<UScriptStruct>(ClassPackage, StuctName))
+			{
+				return Result;
+			}
+
+			if (UObjectRedirector* RenamedClassRedirector = FindObject<UObjectRedirector>(ClassPackage, StuctName))
+			{
+				return CastChecked<UScriptStruct>(RenamedClassRedirector->DestinationObject);
+			}
+
+			return nullptr;
+		}
+		
+		static int GetUStruct(lua_State* L)
+		{
+			auto State = ILuauState::GetByRawState(L);
+			if(!State)
+			{
+				lua_pushnil(L);
+				return 1;
+			}
+			if(!lua_isstring(L, -1))
+			{
+				lua_pushnil(L);
+				return 1;
+			}
+			auto Name = lua_tostring(L, -1);
+			
+			if(State->GetLoader().Require(Name))
+			{
+				return 1;
+			}
+			
+			FString ClassName = ANSI_TO_TCHAR(Name);
+			auto Struct = FindUStruct(*ClassName);
+			if(!Struct)
+			{
+				ClassName.RemoveAt(0);
+				Struct = FindUStruct(*ClassName);
+				if(!Struct)
+				{
+					lua_pushnil(L);
+					return 1;
+				}
+			}
+			auto& Register = State->GetRegister();
+			Register.BeginModule("");
+			Register.RegUStruct(Struct, false);
+			Register.EndModule();
+			State->GetLoader().Require(Name);
+			return 1;
+		}
+
+
+		static UEnum* FindEnum(const TCHAR* ClassName)
+		{
+			check(ClassName);
+
+			UObject* ClassPackage = ANY_PACKAGE;
+
+			if (UEnum* Result = FindObject<UEnum>(ClassPackage, ClassName))
+			{
+				return Result;
+			}
+
+			if (UObjectRedirector* RenamedClassRedirector = FindObject<UObjectRedirector>(ClassPackage, ClassName))
+			{
+				return CastChecked<UEnum>(RenamedClassRedirector->DestinationObject);
+			}
+
+			return nullptr;
+		}
+		
+		static int GetUEnum(lua_State* L)
+		{
+			auto State = ILuauState::GetByRawState(L);
+			if(!State)
+			{
+				lua_pushnil(L);
+				return 1;
+			}
+			if(!lua_isstring(L, -1))
+			{
+				lua_pushnil(L);
+				return 1;
+			}
+			auto Name = lua_tostring(L, -1);
+			FString EnumName = ANSI_TO_TCHAR(Name);
+			auto Enum = FindEnum(*EnumName);
+			if(!Enum)
+			{
+				lua_pushnil(L);
+				return 1;
+			}
+			auto& Register = State->GetRegister();
+			Register.BeginModule("");
+			Register.RegUEnum(Enum);
+			Register.EndModule();
+			State->GetLoader().Require(Name);
+			return 1;
+		}
+		
+		static int IsValidUObject(lua_State* L)
+		{
+			auto State = ILuauState::GetByRawState(L);
+			if(!State)
+			{
+				StackAPI::Push(L, false);
+				return 1;
+			}
+			auto Object = StackAPI::Check<UObject*>(L, -1);
+			if(!Object)
+			{
+				StackAPI::Push(L, false);
+				return 1;
+			}
+
+			if(!IsValid(Object) || !GUObjectArray.IsValid(Object) || Object->IsPendingKill())
+			{
+				StackAPI::Push(L, false);
+				return 1;
+			}
+
+			StackAPI::Push(L, true);
+			return 1;
+		}
 #endif
 
 		static int DumpTable(lua_State* L)
@@ -144,14 +284,79 @@ namespace ToLuau
 			return 0;
 		}
 
+		static int Who(lua_State* L)
+		{
+			StackAPI::AutoStack AutoStack(L);
+			if(lua_gettop(L) < 1)
+			{
+				return 0;
+			}
+			auto TypeId = lua_type(L, 1);
+			auto TypeName = lua_typename(L, TypeId);
+
+			if(lua_isnumber(L, 1) || lua_isstring(L, 1))
+			{
+				auto CharStr = lua_tostring(L, 1);
+				LUAU_LOG_F("%s (%s)", TypeName, CharStr);
+			}
+			else if(lua_istable(L, 1))
+			{
+				LUAU_LOG_F("%s", TypeName);
+				Lua::DumpTable(L, 1, 1);
+			}
+			else if(lua_isuserdata(L, 1)) 
+			{
+				int32_t TagId = lua_userdatatag(L, 1);
+				std::string TagName;
+				if(TagId <= 0 || TagId >= (int32_t)ToLuau::StackAPI::UserDataType::Max)
+				{
+					TagName = ToLuau::StringEx::Format("Invalid(%d)", TagId); 
+				}
+				else
+				{
+					TagName = ToLuau::StackAPI::UserDataTypeNames[TagId];
+				}
+            		
+				lua_getmetatable(L, 1); // value mt
+				if(!lua_istable(L, -1))
+				{
+					LUAU_LOG_F("%s", TypeName);
+				}
+				else
+				{
+					lua_getfield(L, -1, "__type"); // value mt name
+					if(!lua_isstring(L, -1))
+					{
+						LUAU_LOG_F("%s - tag:%s", TypeName, TagName.c_str());
+					}
+					else
+					{
+						std::string UserDataName = lua_tostring(L, -1);
+						LUAU_LOG_F("%s(%s) - tag:%s", TypeName, UserDataName.c_str(), TagName.c_str());
+					}
+				}
+			}
+			else
+			{
+				LUAU_LOG_F("%s", TypeName);
+			}
+			return 0;
+		}
+
 		static const luaL_Reg Reg[] = {
 				{"log", Log},
 				{"logError", Error},
 				{"require", Require},
 #ifdef TOLUAUUNREAL_API
 				{"uclass", GetUClass},
+				{"ustruct", GetUStruct},
+				{"uenum", GetUEnum},
 #endif
 				{"dumpTable", DumpTable},
+				{"who", Who},
+#ifdef TOLUAUUNREAL_API
+				{"isValidUObject", IsValidUObject},
+#endif
                 {NULL, NULL},
 		};
 	}

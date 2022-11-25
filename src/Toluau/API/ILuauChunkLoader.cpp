@@ -61,6 +61,11 @@ namespace ToLuau
     	size_t CurrentIndex = 0;
     	while(CurrentIndex < Splited.size())
     	{
+    		if(lua_istable(L, -1))
+    		{
+    			lua_pop(L, 1);
+    			return  false;
+    		}
     		auto& SubName = Splited[CurrentIndex];
     		lua_rawgetfield(L, -1, SubName.c_str());  // preload field
     		if(lua_isnil(L, -1))
@@ -97,11 +102,17 @@ namespace ToLuau
 
 	bool LuauChunkLoader::Require(const std::string& Path, bool ForceReload) const
 	{
+		auto L = GetOwner()->GetState();
+		auto top = lua_gettop(L);
 		for(auto& Loader : Loaders)
 		{
 			if(Loader->Load(Path, ForceReload))
 			{
 				return true;
+			}
+			else
+			{
+				lua_settop(L, top);
 			}
 		}
         // if require failed ,push nil
@@ -118,7 +129,7 @@ namespace ToLuau
 		std::string FinalLoadPath = ToLuau::PathHelper::Combine(Path, TempFileName);
         std::string ModuleName = FileName;
 
-        Lua::Log(StringEx::Format("require name : %s", ModuleName.c_str()));
+        // Lua::Log(StringEx::Format("require name : %s", ModuleName.c_str()));
 
 		auto FinishRequire = [](lua_State* L, bool Succ)->int32_t{
 			if (lua_isstring(L, -1))
@@ -165,13 +176,16 @@ namespace ToLuau
 		{
 			// return the module from the cache
 			lua_getfield(L, -1, Splited[CurrentIndex].c_str()); // table value
-			lua_remove(L, -2);
 			if (!lua_isnil(L, -1))
 			{
+				lua_remove(L, -2);
 				FinishRequire(L, true) ;
 				return true;
 			}
-			lua_pop(L, 1);
+			else
+			{
+				lua_pop(L, 1);
+			}
 		}
 		else
 		{

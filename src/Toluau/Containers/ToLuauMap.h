@@ -84,6 +84,7 @@ namespace ToLuau
 		static int32 Empty(lua_State* L);
 		static int32 Pairs(lua_State* L);
 		static int32 Enumerable(lua_State* L);
+		static int32 ToTable(lua_State* L);
 		
 	private:
 
@@ -165,7 +166,8 @@ namespace ToLuau
 		static int32 Set(lua_State* L);
 		static int32 RemoveAt(lua_State* L);
 		static int32 Empty(lua_State* L);
-		static int32_t SetupMetaTable(lua_State* L);
+		static int32 ToTable(lua_State* L);
+		static int32 SetupMetaTable(lua_State* L);
 		
 	private:
 		TMap<K, V>* RawMap = nullptr;
@@ -359,6 +361,25 @@ namespace ToLuau
 	}
 
 	template <typename K, typename V>
+	int32 ToLuauRawMap<K, V>::ToTable(lua_State* L)
+	{
+		TSharedPtr<ToLuauRawMap<K, V>> UD = StackAPI::Check<TSharedPtr<ToLuauRawMap<K, V>>>(L, 1);
+		if(!UD)
+		{
+			return 0;
+		}
+		TMap<K, V>* RawMap = UD->GetRawMapPointer();
+		lua_newtable(L);
+		for (auto& Pair : *RawMap)
+		{
+			StackAPI::Push(L, Pair.Key);
+			StackAPI::Push(L, Pair.Value);
+			lua_settable(L, -3);
+		}
+		return 1;
+	}
+
+	template <typename K, typename V>
 	int32_t ToLuauRawMap<K, V>::SetupMetaTable(lua_State* L)
 	{
 		StackAPI::SetupMetaTableCommon(L);
@@ -387,6 +408,9 @@ namespace ToLuau
 		
 		lua_pushcfunction(L, &ToLuauRawMap::Empty, "ToLuauRawMap::Empty");
 		lua_setfield(L, -2, "Empty");
+
+		lua_pushcfunction(L, &ToLuauRawMap::ToTable, "ToLuauRawMap::ToTable");
+		lua_setfield(L, -2, "ToTable");
 		
 		return 0;
 	}
@@ -452,6 +476,21 @@ namespace ToLuau
 					if(lua_isnil(L, Pos))
 					{
 						return nullptr;
+					}
+					if(lua_istable(L, Pos))
+					{
+						TMap<K, V> Result;
+						lua_pushvalue(L, Pos);// ... table
+						lua_pushnil(L); // ... tabel nil
+						while (lua_next(L, -2))
+						{
+							auto Key = StackOperatorWrapper<V>::Check(L, -2);
+							auto Value = StackOperatorWrapper<V>::Check(L, -1);
+							Result.Add(Key, Value); // ... table key value
+							lua_pop(L, 1); // ... table key
+						}
+						lua_pop(L, 1); // ...
+						return Result;
 					}
 					auto Result = StackOperatorWrapper<TSharedPtr<ToLuauRawMap<K, V>>>::Check(L, Pos);
 					return *Result->GetRawArrayPointer();

@@ -10,7 +10,7 @@
 #include <vector>
 #include <map>
 #include <memory>
-#include <cassert>
+#include <cmath>
 
 #include "lua.h"
 #include "lualib.h"
@@ -50,10 +50,30 @@ namespace ToLuau
 			int top;
 		};
 
+		struct StackChecker {
+			StackChecker(lua_State* L, int32_t TargetOffset = 0)
+			{
+				this->L = L;
+				this->TargetTop = lua_gettop(L) + TargetOffset;
+				TOLUAU_ASSERT(TargetTop > 0)
+			}
+			
+			StackChecker(lua_State* L, int32_t PopNum, int32_t PushNum)
+				: StackChecker(L, -PopNum + PushNum)
+			{
+			}
+			
+			~StackChecker() {
+				TOLUAU_ASSERT(lua_gettop(L) == this->TargetTop)
+			}
+			lua_State* L;
+			int TargetTop;
+		};
+
 		enum class UserDataType
 		{
 			None = 0,
-			Int64 = 1,
+			Int64,
 			UInt64,
 			RawPtr,
 			RawValue,
@@ -64,11 +84,16 @@ namespace ToLuau
 			UEStruct,
 			UESharedPtr,
 			UEWeakPtr,
+			UESharedThreadSafePtr,
+			UEWeakThreadSafePtr,
 			UEObjStrongPtr,
 			UEObjWeakPtr,
+			UObjectRawPtr,
 #endif
 			Max
 		};
+
+		ToLuau_API extern std::string UserDataTypeNames[];
 
 #ifdef TOLUAUUNREAL_API
 		template<typename T>
@@ -78,10 +103,38 @@ namespace ToLuau
 		using LuaUEWeakPtr = TWeakPtr<T>;
 
 		template<typename T>
+		using LuaUESharedThreadSafePtr = TSharedPtr<T, ESPMode::ThreadSafe>;
+
+		template<typename T>
+		using LuaUEWeakThreadSafePtr = TWeakPtr<T, ESPMode::ThreadSafe>;
+
+		template<typename T>
 		using LuaUEObjStrongPtr = TStrongObjectPtr<T>;
 		
 		template<typename T>
 		using LuaUEObjWeakPtr = TWeakObjectPtr<T>;
+
+#ifdef TOLUAUUNREAL_API
+		namespace UE
+		{
+			ToLuau_API int32_t PushUEStruct(lua_State* L, void* Value, UScriptStruct* StructType);
+
+			ToLuau_API int32_t PushNewUEStruct(lua_State* L, UScriptStruct* StructType);
+			
+			ToLuau_API void* CheckUEStruct(lua_State* L, int32_t Pos, UScriptStruct* StructType = nullptr);
+
+			template<typename T>
+			T* CheckUEStruct(lua_State* L, int32_t Pos)
+			{
+				if constexpr (HasStaticStruct<T>::Value)
+				{
+					return static_cast<T*>(CheckUEStruct(L, Pos, T::StaticStruct()));
+				}
+				return nullptr;
+			}
+		}
+#endif
+
 #endif
 		
 #if LUAU_SUPPORT_HOYO_CLASS
@@ -90,16 +143,16 @@ namespace ToLuau
 			using PushFunc = TFunction<int32_t(lua_State*, void*)>;
 			using CheckFunc = TFunction<void*(lua_State*, int32_t)>;
 			
-			extern ToLuau_API TMap<FHoYoClass, PushFunc> HoYoClassRegisterPushFuncMap;
-			extern ToLuau_API TMap<FHoYoClass, CheckFunc> HoYoClassRegisterCheckFuncMap;
+			extern ToLuau_API TMap<FName, PushFunc> HoYoClassRegisterPushFuncMap;
+			extern ToLuau_API TMap<FName, CheckFunc> HoYoClassRegisterCheckFuncMap;
 
 			template<typename T>
 			struct HoYoClassStackAPIRegister
 			{
 				HoYoClassStackAPIRegister(PushFunc CustomPushFunc, CheckFunc CustomCheckFunc)
 				{
-					HoYoClassRegisterPushFuncMap.Add(T::StaticHoYoClass(), CustomPushFunc);
-					HoYoClassRegisterCheckFuncMap.Add(T::StaticHoYoClass(), CustomCheckFunc);
+					HoYoClassRegisterPushFuncMap.Add(T::StaticHoYoClass().GetName(), CustomPushFunc);
+					HoYoClassRegisterCheckFuncMap.Add(T::StaticHoYoClass().GetName(), CustomCheckFunc);
 				}
 			};
 
@@ -118,9 +171,146 @@ namespace ToLuau
 
 		ToLuau_API int32_t SetupMetaTableCommon(lua_State*L);
 		
-		ToLuau_API int32_t SetClassMetaTable(lua_State* L, std::string& ClassName, lua_CFunction SetupMetaTable = nullptr);
+#ifdef TOLUAUUNREAL_API
+		ToLuau_API int32_t GetClassMetaRef(lua_State* L, const UStruct* Struct);
+		ToLuau_API int32_t GetClassMetaRef(lua_State* L, const UClass* Class);
+#endif
+		ToLuau_API int32_t GetClassMetaRef(lua_State* L, const ToLuau::Class* Class);
+		ToLuau_API int32_t GetClassMetaRef(lua_State* L, const std::string& ClassName);
+#if LUAU_SUPPORT_HOYO_CLASS
+		ToLuau_API int32_t GetClassMetaRef(lua_State* L, const FHoYoClass* Class);
+#endif
 
-		ToLuau_API bool HasMetaTable(lua_State* L, std::string& ClassName);
+		template<typename T>
+		int32_t GetClassMetaRefByClass(lua_State* L, const void* Obj)
+		{
+#if LUAU_SUPPORT_HOYO_CLASS
+			if constexpr (HasStaticHoYoClass<T>::Value)
+			{
+				const T* RealObj = static_cast<const T*>(Obj);
+				const FHoYoClass& CurrentClass = RealObj->GetHoYoClass();
+				auto Result = GetClassMetaRef(L, &CurrentClass);
+				if(Result > 0)
+				{
+					return Result;
+				}
+			}
+#endif
+#ifdef TOLUAUUNREAL_API
+			if constexpr (HasStaticClass<T>::Value)
+			{
+				const T* RealObj = static_cast<const T*>(Obj);
+				const UClass* CurrentClass = RealObj->GetClass();
+				auto Result = GetClassMetaRef(L, CurrentClass);
+				if(Result > 0)
+				{
+					return Result;
+				}
+			}
+			if constexpr (HasStaticStruct<T>::Value)
+			{
+				const UStruct* CurrentClass = T::StaticStruct();
+				auto Result = GetClassMetaRef(L, CurrentClass);
+				if(Result > 0)
+				{
+					return Result;
+				}
+			}
+#endif
+			if constexpr (HasStaticLuaClass<T>::Value)
+			{
+				const T* RealObj = static_cast<const T*>(Obj);
+				const Class* CurrentClass = RealObj->GetLuaClass();
+				auto Result = GetClassMetaRef(L, CurrentClass);
+				if(Result > 0)
+				{
+					return Result;
+				}
+			}
+
+			{
+				auto Ref = GetClassMetaRef(L, GetClassName<T>());
+				if(Ref > 0)
+				{
+					return Ref;
+				}
+			}
+
+			return -1;
+		}
+
+		ToLuau_API int32_t SetExternalClassMetaTableInternal(lua_State* L, std::string& ClassName, int32_t ClassRef, lua_CFunction SetupMetaTable, bool bDontRegisterMetatable);
+
+		ToLuau_API int32_t SetClassMetaTable(lua_State* L, std::string& ClassName, lua_CFunction SetupMetaTable = nullptr, bool bDontRegisterMetatable = false);
+		
+		template<typename T>
+		int32_t SetClassMetaTable(lua_State* L, const void* Obj, lua_CFunction SetupMetaTable = nullptr, bool bDontRegisterMetatable = false)
+		{
+			auto ClassRef = GetClassMetaRefByClass<T>(L, Obj);
+			auto ClassName = GetClassName<T>(Obj);
+			
+			if(SetupMetaTable != nullptr)
+			{
+				return SetExternalClassMetaTableInternal(L, ClassName, ClassRef, SetupMetaTable, bDontRegisterMetatable);
+			}
+			
+			if(ClassRef > 0)
+			{
+				lua_getref(L, ClassRef); // ud meta
+				lua_setmetatable(L, -2); // ud
+				return 1;
+			}
+			
+			luaL_errorL(L, "cannot find class meta ref %s", ClassName.c_str());
+		}
+
+		ToLuau_API bool HasMetaTable(lua_State* L, const std::string& ClassName);
+#ifdef TOLUAUUNREAL_API
+		ToLuau_API bool HasMetaTable(lua_State* L, const UStruct* Struct);
+		ToLuau_API bool HasMetaTable(lua_State* L, const UClass* Class);
+#endif
+#if LUAU_SUPPORT_HOYO_CLASS
+		ToLuau_API bool HasMetaTable(lua_State* L, const FHoYoClass* Class);
+#endif
+		ToLuau_API bool HasMetaTable(lua_State* L, const ToLuau::Class* Class);
+
+		template<typename T>
+		bool HasMetaTable(lua_State* L, const void* Obj)
+		{
+#if LUAU_SUPPORT_HOYO_CLASS
+			if constexpr (HasStaticHoYoClass<T>::Value)
+			{
+				const T* RealObj = static_cast<const T*>(Obj);
+				const FHoYoClass& CurrentClass = RealObj->GetHoYoClass();
+				return HasMetaTable(L, &CurrentClass);
+			}
+#endif
+#ifdef TOLUAUUNREAL_API
+			if constexpr (HasStaticClass<T>::Value)
+			{
+				const T* RealObj = static_cast<const T*>(Obj);
+				const UClass* CurrentClass = RealObj->GetClass();
+				return HasMetaTable(L, CurrentClass);
+			}
+			if constexpr (HasStaticStruct<T>::Value)
+			{
+				const UStruct* CurrentClass = T::StaticStruct();
+				return HasMetaTable(L, CurrentClass);
+			}
+#endif
+			if constexpr (HasStaticLuaClass<T>::Value)
+			{
+				const T* RealObj = static_cast<const T*>(Obj);
+				const Class* CurrentClass = RealObj->GetLuaClass();
+				return HasMetaTable(L, CurrentClass);
+			}
+
+			{
+				auto ClassName = GetClassName<T>();
+				return HasMetaTable(L, ClassName);
+			}
+
+		}
 
 #ifdef TOLUAUUNREAL_API
 		ToLuau_API bool RegClass(lua_State* L, UClass* Class);
@@ -163,7 +353,6 @@ namespace ToLuau
 						lua_pop(L, 1);
 						RegisterInt64(L);
 						
-						lua_getref(L, Int64Detail::gInt64MT);
 						if(lua_isnil(L, -1))
 						{
 							luaL_errorL(L, "cannot register int64 meta table !!");
@@ -183,7 +372,8 @@ namespace ToLuau
 			
 					if (lua_isnumber(L, pos))
 						return lua_tointeger(L, pos);
-			
+
+					Lua::DumpStack(L, "type error");
 					luaL_typeerror(L, pos, "int64");
 				}
 			};
@@ -196,20 +386,19 @@ namespace ToLuau
 				{
 					void* p = lua_newuserdatatagged(L, sizeof(luau_uint64), UD_TAG(UInt64));
 			
-					lua_getref(L, UInt64Detail::gUInt64MT);
-					if(lua_isnil(L, -1))
+					lua_getref(L, UInt64Detail::gUInt64MT); // ud mt
+					if(lua_isnil(L, -1)) // ud nil
 					{
-						lua_pop(L, 1);
-						RegisterUInt64(L);
+						lua_pop(L, 1); // ud 
+						RegisterUInt64(L);  // ud mt
 						
-						lua_getref(L, UInt64Detail::gUInt64MT);
 						if(lua_isnil(L, -1))
 						{
 							luaL_errorL(L, "cannot register int64 meta table !!");
 						}
 					}
 					
-					lua_setmetatable(L, -2);
+					lua_setmetatable(L, -2); // ud
 			
 					*static_cast<luau_uint64*>(p) = Value;
 					return 1;
@@ -222,7 +411,8 @@ namespace ToLuau
 			
 					if (lua_isnumber(L, pos))
 						return lua_tointeger(L, pos);
-			
+
+					Lua::DumpStack(L, "type error");
 					luaL_typeerror(L, pos, "uint64");
 				}
 			};
@@ -459,6 +649,7 @@ namespace ToLuau
 
 					if(!lua_istable(L, Pos))
 					{
+						Lua::DumpStack(L, "type error");
 						luaL_typeerrorL(L, Pos, "table");
 						return Result;
 					}
@@ -499,6 +690,7 @@ namespace ToLuau
 					std::map<K, V> Result;
 					if(!lua_istable(L, Pos))
 					{
+						Lua::DumpStack(L, "type error");
 						luaL_typeerror(L, Pos, "table");
 						return Result;
 					}
@@ -605,10 +797,11 @@ namespace ToLuau
 				{
 					if(!lua_islightuserdata(L, Pos))
 					{
+						Lua::DumpStack(L, "type error");
 						luaL_typeerror(L, Pos, "lightuserdata");
 						return nullptr;
 					}
-					return reinterpret_cast<T*>(lua_tolightuserdata(L, Pos));
+					return static_cast<T*>(lua_tolightuserdata(L, Pos));
 				}
 			};
 
@@ -635,12 +828,12 @@ namespace ToLuau
 
 				static T& Check(lua_State* L, int32_t Pos)
 				{
-					return StackOperatorWrapper<T*>::Check(L, &Pos);
+					return *StackOperatorWrapper<T*>::Check(L, Pos);
 				}
 			};
 
 			template<typename T>
-			int32_t PushRawPtr(lua_State* L, T* Value)
+			int32_t PushRawPtr(lua_State* L, T* Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 			{
 				if(!Value)
 				{
@@ -655,8 +848,11 @@ namespace ToLuau
 				NewUserData->SetValue<T>(Value);
 #if ToLuauDebug
 				NewUserData->SetDebugName(ClassName.c_str());
-#endif 	
-				SetClassMetaTable(L, ClassName);
+#endif
+				if(HasMetaTable<T>(L, Value) || SetupMetatable)
+				{
+					SetClassMetaTable<T>(L, Value, SetupMetatable, bDontRegisterMetatable);
+				}
 				return 1;
 			}
 			
@@ -682,11 +878,24 @@ namespace ToLuau
 #ifdef TOLUAUUNREAL_API
 				else if (void* UESharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(UESharedPtr)))
 				{
-					return static_cast<TSharedPtr<T>*>(UESharedPtr)->Get();
+					return static_cast<LuaUESharedPtr<T>*>(UESharedPtr)->Get();
 				}
 				else if (void* UEWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakPtr)))
 				{
-					TWeakPtr<T> WeakPtr = *static_cast<TWeakPtr<T>*>(UEWeakPtr);
+					LuaUEWeakPtr<T> WeakPtr = *static_cast<LuaUEWeakPtr<T>*>(UEWeakPtr);
+					if(!WeakPtr.IsValid())
+					{
+						return nullptr;
+					}
+					return WeakPtr.Pin().Get();
+				}
+				else if (void* UESharedThreadSafePtr = lua_touserdatatagged(L, Pos, UD_TAG(UESharedThreadSafePtr)))
+				{
+					return static_cast<LuaUESharedThreadSafePtr<T>*>(UESharedThreadSafePtr)->Get();
+				}
+				else if (void* UEWeakThreadSafePtr = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakThreadSafePtr)))
+				{
+					LuaUEWeakThreadSafePtr<T> WeakPtr = *static_cast<LuaUEWeakThreadSafePtr<T>*>(UEWeakThreadSafePtr);
 					if(!WeakPtr.IsValid())
 					{
 						return nullptr;
@@ -701,9 +910,9 @@ namespace ToLuau
 				{
 					return static_cast<TWeakObjectPtr<T>*>(UEObjWeakPtr)->Get();
 				}
-				else if (void* UEStruct = lua_touserdatatagged(L, Pos, UD_TAG(UEStruct)))
+				else if (lua_userdatatag(L, Pos) == UD_TAG(UEStruct))
 				{
-					return static_cast<T*>(UEStruct); 
+					return static_cast<T*>(StackAPI::UE::CheckUEStruct(L, Pos));
 				}
 #endif
 				return nullptr;
@@ -744,30 +953,17 @@ namespace ToLuau
 			{
 				static int32_t Push(lua_State* L, T& Value)
 				{
-					UScriptStruct* ScriptStruct = T::StaticStruct();
-					void* p = lua_newuserdatatagged(L, sizeof(T), UD_TAG(UEStruct));
-					ScriptStruct->InitializeStruct(p);
-			
-					auto ClassName = GetClassName<T>();
-					// set metatable
-					if(!HasMetaTable(L, ClassName))
-					{
-						RegStruct(L, ScriptStruct);
-					}
-					SetClassMetaTable(L, ClassName);
-			
-					*static_cast<T*>(p) = Value;
-					
-					return 1;
+					return UE::PushUEStruct(L, &Value, T::StaticStruct());
 				}
 				
 				static T Check(lua_State* L, int32_t Pos)
 				{
-					if (void* p = lua_touserdatatagged(L, Pos, UD_TAG(UEStruct)))
+					if(void* Result = UE::CheckUEStruct(L, Pos))
 					{
-						return *static_cast<T*>(p);
+						return *static_cast<T*>(Result);
 					}
-					luaL_typeerror(L, Pos, "UEStruct");
+					Lua::DumpStack(L, "type error");
+					luaL_typeerror(L, Pos, GetClassName<T>().c_str());
 				}
 			};
 			template<typename T> struct BuildInPushValue<T, typename std::enable_if<HasStaticStruct<T>::Value>::type> { static constexpr bool Value = true; };
@@ -775,21 +971,49 @@ namespace ToLuau
 			template<typename T>
 			struct StackOperatorWrapper<T*, typename std::enable_if<TIsDerivedFrom<T, UObject>::Value || HasStaticClass<T>::Value>::type>
 			{
-				static int32_t Push(lua_State* L, T* Value)
+				static int32_t Push(lua_State* L, T* Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
-					if(!Value)
+					if(!Value || !IsValid(Value) ||!GUObjectArray.IsValid(Value) || Value->IsPendingKill())
 					{
 						lua_pushnil(L);
 						return 1;
 					}
-					return StackOperatorWrapper<TStrongObjectPtr<T>>::Push(L, TStrongObjectPtr<T>(Value));
+
+					if(false)
+					{
+						void* p = lua_newuserdatatagged(L, sizeof(UObject*), UD_TAG(UObjectRawPtr));
+						auto ClassName = GetClassName<T>(Value);
+						if(!SetupMetatable && !HasMetaTable<T>(L, Value))
+						{
+							RegClass(L, Value->GetClass());
+						}
+						if(SetupMetatable || HasMetaTable<T>(L, Value))
+						{
+							SetClassMetaTable(L, ClassName, SetupMetatable);
+						}
+						UObject*& Ptr = *static_cast<UObject**>(p);
+						Ptr = Value;
+						return 1;
+					}
+					
+					return StackOperatorWrapper<TStrongObjectPtr<T>>::Push(L, TStrongObjectPtr<T>(Value), SetupMetatable, bDontRegisterMetatable);
 				}
 				
 				static T* Check(lua_State* L, int32_t Pos)
 				{
-					auto Ptr = StackOperatorWrapper<TStrongObjectPtr<T>>::Check(L, Pos);
-					T* Obj = static_cast<T*>(Ptr.Get());
-					return Obj;
+					if(lua_isnil(L, Pos))
+					{
+						return nullptr;
+					}
+					if(false)
+					{
+						if (void* p = lua_touserdatatagged(L, Pos, UD_TAG(UObjectRawPtr)))
+						{
+							UObject*& Ptr = *static_cast<UObject**>(p);
+							return Cast<T>(Ptr);
+						}
+					}
+					return static_cast<T*>(StackOperatorWrapper<TStrongObjectPtr<T>>::Check(L, Pos).Get());
 				}
 			};
 #endif
@@ -797,7 +1021,7 @@ namespace ToLuau
 			template<typename T>
 			struct StackOperatorWrapper<std::shared_ptr<T>>
 			{
-				static int32_t Push(lua_State* L, std::shared_ptr<T> Value, lua_CFunction SetupMetatable = nullptr)
+				static int32_t Push(lua_State* L, std::shared_ptr<T> Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
 					if(Value == nullptr)
 					{
@@ -809,12 +1033,25 @@ namespace ToLuau
 					void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(StdSharedPtr));
 					memcpy(p, &Temp, sizeof(Temp));
 
-					auto ClassName = GetClassName<T>(Value.get());
+					auto RawObj = Value.get();
+					auto ClassName = GetClassName<T>(RawObj);
 
-					// set metatable
-					if(HasMetaTable(L, ClassName) || SetupMetatable)
+#ifdef TOLUAUUNREAL_API
+					if(!SetupMetatable)
 					{
-						SetClassMetaTable(L, ClassName, SetupMetatable);
+						if constexpr (HasStaticStruct<T>::Value && HasStaticHoYoClass<T>::Value)
+						{
+							if(!HasMetaTable<T>(L, RawObj))
+							{
+								RegStruct(L, const_cast<UScriptStruct*>(Cast<const UScriptStruct>(Value->GetHoYoClass().GetUStruct())));
+							}
+						}
+					}
+#endif
+					// set metatable
+					if(SetupMetatable || HasMetaTable<T>(L, RawObj))
+					{
+						SetClassMetaTable<T>(L, RawObj, SetupMetatable, bDontRegisterMetatable);
 					}
 
 					auto& Ptr = *static_cast<std::shared_ptr<T>*>(p);
@@ -838,7 +1075,8 @@ namespace ToLuau
 						}
 						return std::static_pointer_cast<T>(Weak.lock());
 					}
-					luaL_typeerror(L, pos, "std::shared_ptr");
+					Lua::DumpStack(L, "type error");
+					luaL_typeerror(L, pos, GetClassName<T>().c_str());
 				}
 			};
 			template<typename T> struct BuildInPushValue<std::shared_ptr<T>> { static constexpr bool Value = true; };
@@ -847,7 +1085,7 @@ namespace ToLuau
 			template<typename T>
 			struct StackOperatorWrapper<std::weak_ptr<T>>
 			{
-				static int32_t Push(lua_State* L, std::weak_ptr<T> Value, lua_CFunction SetupMetatable = nullptr)
+				static int32_t Push(lua_State* L, std::weak_ptr<T> Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
 					if(Value.expired())
 					{
@@ -858,11 +1096,22 @@ namespace ToLuau
 					void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(StdWeakPtr));
 					memcpy(p, &Temp, sizeof(Temp));
 
+					auto RawObj = Value.lock().get();
 					auto ClassName = GetClassName<T>(Value.lock().get());
-					// set metatable
-					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					
+#ifdef TOLUAUUNREAL_API
+					if constexpr (HasStaticStruct<T>::Value && HasStaticHoYoClass<T>::Value)
 					{
-						SetClassMetaTable(L, ClassName, SetupMetatable);
+						if(!HasMetaTable<T>(L, RawObj))
+						{
+							RegStruct(L, const_cast<UScriptStruct*>(Cast<const UScriptStruct>(Value->GetHoYoClass().GetUStruct())));
+						}
+					}
+#endif
+					// set metatable
+					if(HasMetaTable<T>(L, RawObj) || SetupMetatable)
+					{
+						SetClassMetaTable<T>(L, RawObj, SetupMetatable, bDontRegisterMetatable);
 					}
 
 					auto& Ptr = *static_cast<std::weak_ptr<T>*>(p);
@@ -882,7 +1131,8 @@ namespace ToLuau
 						auto Shared = *static_cast<std::shared_ptr<void>*>(p);
 						return std::static_pointer_cast<T>(Shared);
 					}
-					luaL_typeerror(L, pos, "std::weak_ptr");
+					Lua::DumpStack(L, "type error");
+					luaL_typeerror(L, pos, GetClassName<T>().c_str());
 				}
 			};
 			template<typename T> struct BuildInPushValue<std::weak_ptr<T>> { static constexpr bool Value = true; };
@@ -909,7 +1159,7 @@ namespace ToLuau
 					auto* CurrentClass = &HoYoClass;
 					do
 					{
-						auto FuncPtr = HoYoClass::HoYoClassRegisterPushFuncMap.Find(*CurrentClass);
+						auto FuncPtr = HoYoClass::HoYoClassRegisterPushFuncMap.Find(CurrentClass->GetName());
 						if(FuncPtr)
 						{
 							return (*FuncPtr)(L, Value);
@@ -937,7 +1187,7 @@ namespace ToLuau
 					auto* CurrentClass = &HoYoClass;
 					do
 					{
-						auto FuncPtr = HoYoClass::HoYoClassRegisterCheckFuncMap.Find(HoYoClass);
+						auto FuncPtr = HoYoClass::HoYoClassRegisterCheckFuncMap.Find(CurrentClass->GetName());
 						if(FuncPtr)
 						{
 							return static_cast<T*>((*FuncPtr)(L, Pos));
@@ -960,100 +1210,191 @@ namespace ToLuau
 #ifdef TOLUAUUNREAL_API
 
 #pragma region ue smart ptr
-			
-			template<typename T>
-			struct StackOperatorWrapper<LuaUESharedPtr<T>>
+
+			template<typename T, ESPMode SPMode>
+			struct StackOperatorWrapper<TSharedPtr<const T, SPMode>>
 			{
-				static int32_t Push(lua_State* L, LuaUESharedPtr<T> Value, lua_CFunction SetupMetatable = nullptr)
+				static int32_t Push(lua_State* L, TSharedPtr<const T, SPMode> Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
+				{
+					return StackOperatorWrapper<TSharedPtr<T, SPMode>>::Push(L, ConstCastSharedPtr<T>(Value), SetupMetatable, bDontRegisterMetatable);
+				}
+
+				static TSharedPtr<const T, SPMode> Check(lua_State* L, int32_t pos)
+				{
+					TSharedPtr<T, SPMode> Result = StackOperatorWrapper<TSharedPtr<T, SPMode>>::Check(L, pos);
+					return ConstCastSharedPtr<const T>(Result);
+				}
+			};
+			
+			template<typename T, ESPMode SPMode>
+			struct StackOperatorWrapper<TSharedPtr<T, SPMode>, typename std::enable_if<!TIsConst<T>::Value>::type>
+			{
+				static int32_t Push(lua_State* L, TSharedPtr<T, SPMode> Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
 					if(!Value.IsValid())
 					{
 						lua_pushnil(L);
 						return 1;
 					}
+
+					auto Tag = SPMode == ESPMode::ThreadSafe ? UserDataType::UESharedThreadSafePtr : UserDataType::UESharedPtr;
 					
-					LuaUESharedPtr<void> Temp;
-					void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(UESharedPtr));
-					memcpy(p, &Temp, sizeof(LuaUESharedPtr<void>));
-					
-					auto ClassName = GetClassName<T>(Value.Get());
-					// set metatable
-					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					TSharedPtr<void, SPMode> Temp;
+					void* p = lua_newuserdatatagged(L, sizeof(Temp), static_cast<int32_t>(Tag));
+					memcpy(p, &Temp, sizeof(TSharedPtr<void, SPMode>));
+
+					auto RawObj = Value.Get();
+					auto ClassName = GetClassName<T>(RawObj);
+#ifdef TOLUAUUNREAL_API
+					if constexpr (HasStaticStruct<T>::Value && HasStaticHoYoClass<T>::Value)
 					{
-						SetClassMetaTable(L, ClassName, SetupMetatable);
+						if(!HasMetaTable<T>(L, RawObj))
+						{
+							RegStruct(L, const_cast<UScriptStruct*>(Cast<const UScriptStruct>(Value->GetHoYoClass().GetUStruct())));
+						}
 					}
-					
-					*static_cast<LuaUESharedPtr<void>*>(p) = Value;
+#endif
+					// set metatable
+					if(SetupMetatable || HasMetaTable<T>(L, RawObj))
+					{
+						SetClassMetaTable<T>(L, RawObj, SetupMetatable, bDontRegisterMetatable);
+					}
+
+					*static_cast<TSharedPtr<void, SPMode>*>(p) = Value;
 					return 1;
 				}
 
-				static LuaUESharedPtr<T> Check(lua_State* L, int32_t pos)
+				static TSharedPtr<T, SPMode> Check(lua_State* L, int32_t pos)
 				{
 					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UESharedPtr)))
 					{
-						return StaticCastSharedPtr<T>(*static_cast<LuaUESharedPtr<void>*>(p));
+						TOLUAU_ASSERT(SPMode == ESPMode::NotThreadSafe)
+						return StaticCastSharedPtr<T>(*static_cast<TSharedPtr<void, SPMode>*>(p));
+					}
+					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UESharedThreadSafePtr)))
+					{
+						TOLUAU_ASSERT(SPMode == ESPMode::ThreadSafe)
+						return StaticCastSharedPtr<T>(*static_cast<TSharedPtr<void, SPMode>*>(p));
 					}
 					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UEWeakPtr)))
 					{
-						auto Weak = *static_cast<LuaUEWeakPtr<void>*>(p);
+						TOLUAU_ASSERT(SPMode == ESPMode::NotThreadSafe)
+						auto Weak = *static_cast<TWeakPtr<void, SPMode>*>(p);
 						if(!Weak.IsValid())
 						{
 							return nullptr;
 						}
 						return StaticCastSharedPtr<T>(Weak.Pin());
 					}
-					luaL_typeerror(L, pos, "TSharedPtr");
+					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UEWeakThreadSafePtr)))
+					{
+						TOLUAU_ASSERT(SPMode == ESPMode::ThreadSafe)
+						auto Weak = *static_cast<TWeakPtr<void, SPMode>*>(p);
+						if(!Weak.IsValid())
+						{
+							return nullptr;
+						}
+						return StaticCastSharedPtr<T>(Weak.Pin());
+					}
+					Lua::DumpStack(L, "type error");
+					luaL_typeerror(L, pos, GetClassName<T>().c_str());
 				}
 			};
-			template<typename T> struct BuildInPushValue<LuaUESharedPtr<T>> { static constexpr bool Value = true; };
-			
-			template<typename T>
-			struct StackOperatorWrapper<LuaUEWeakPtr<T>>
+			template<typename T, ESPMode SPMode> struct BuildInPushValue<TSharedPtr<T, SPMode>> { static constexpr bool Value = true; };
+
+			template<typename T, ESPMode SPMode>
+			struct StackOperatorWrapper<TWeakPtr<const T, SPMode>>
 			{
-				static int32_t Push(lua_State* L, LuaUEWeakPtr<T> Value, lua_CFunction SetupMetatable = nullptr)
+				static int32_t Push(lua_State* L, TWeakPtr<const T, SPMode> Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
+				{
+					return StackOperatorWrapper<TWeakPtr<T, SPMode>>::Push(L, ConstCastSharedPtr<T>(Value.Pin()), SetupMetatable, bDontRegisterMetatable);
+				}
+
+				static TWeakPtr<const T, SPMode> Check(lua_State* L, int32_t pos)
+				{
+					TWeakPtr<T, SPMode> Result = StackOperatorWrapper<TWeakPtr<T, SPMode>>::Check(L, pos);
+					return ConstCastSharedPtr<const T>(Result.Pin());
+				}
+			};
+			
+			template<typename T, ESPMode SPMode>
+			struct StackOperatorWrapper<TWeakPtr<T, SPMode>, typename std::enable_if<!TIsConst<T>::Value>::type>
+			{
+				static int32_t Push(lua_State* L, TWeakPtr<T, SPMode> Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
 					if(!Value.IsValid())
 					{
 						lua_pushnil(L);
 						return 1;
 					}
-					void* p = lua_newuserdatatagged(L, sizeof(LuaUEWeakPtr<void>), UD_TAG(UEWeakPtr));
+					
+					auto Tag = SPMode == ESPMode::ThreadSafe ? UserDataType::UEWeakThreadSafePtr : UserDataType::UEWeakPtr;
+					
+					void* p = lua_newuserdatatagged(L, sizeof(TWeakPtr<void, SPMode>), static_cast<int32_t>(Tag));
 
-					auto ClassName = GetClassName<T>(Value.Pin().Get());
-					// set metatable
-					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					auto RawObj = Value.Pin().Get();
+					auto ClassName = GetClassName<T>(RawObj);
+#ifdef TOLUAUUNREAL_API
+					if constexpr (HasStaticStruct<T>::Value && HasStaticHoYoClass<T>::Value)
 					{
-						SetClassMetaTable(L, ClassName, SetupMetatable);
+						if(!HasMetaTable<T>(L, RawObj))
+						{
+							RegStruct(L, const_cast<UScriptStruct*>(Cast<const UScriptStruct>(Value->GetHoYoClass().GetUStruct())));
+						}
+					}
+#endif
+					// set metatable
+					if(SetupMetatable || HasMetaTable<T>(L, RawObj))
+					{
+						SetClassMetaTable<T>(L, RawObj, SetupMetatable, bDontRegisterMetatable);
 					}
 					
-					*static_cast<LuaUEWeakPtr<void>*>(p) = Value;
+					*static_cast<TWeakPtr<void, SPMode>*>(p) = Value;
 					return 1;
 				}
 
-				static LuaUEWeakPtr<T> Check(lua_State* L, int32_t pos)
+				static TWeakPtr<T, SPMode> Check(lua_State* L, int32_t pos)
 				{
 					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UEWeakPtr)))
 					{
-						return *static_cast<LuaUEWeakPtr<void>*>(p);
+						TOLUAU_ASSERT(SPMode == ESPMode::NotThreadSafe)
+						return *static_cast<TWeakPtr<void, SPMode>*>(p);
+					}
+					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UEWeakThreadSafePtr)))
+					{
+						TOLUAU_ASSERT(SPMode == ESPMode::ThreadSafe)
+						return *static_cast<TWeakPtr<void, SPMode>*>(p);
 					}
 					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UESharedPtr)))
 					{
-						auto Shared = *static_cast<LuaUESharedPtr<void>*>(p);
+						TOLUAU_ASSERT(SPMode == ESPMode::NotThreadSafe)
+						auto Shared = *static_cast<TSharedPtr<void, SPMode>*>(p);
 						if(!Shared.IsValid())
 						{
 							return nullptr;
 						}
 						return Shared;
 					}
-					luaL_typeerror(L, pos, "TWeakPtr");
+					if (void* p = lua_touserdatatagged(L, pos, UD_TAG(UESharedThreadSafePtr)))
+					{
+						TOLUAU_ASSERT(SPMode == ESPMode::ThreadSafe)
+						auto Shared = *static_cast<TSharedPtr<void, SPMode>*>(p);
+						if(!Shared.IsValid())
+						{
+							return nullptr;
+						}
+						return Shared;
+					}
+					Lua::DumpStack(L, "type error");
+					luaL_typeerror(L, pos, GetClassName<T>().c_str());
 				}
 			};
-			template<typename T> struct BuildInPushValue<LuaUEWeakPtr<T>> { static constexpr bool Value = true; };
+			template<typename T, ESPMode SPMode> struct BuildInPushValue<TWeakPtr<T, SPMode>> { static constexpr bool Value = true; };
 
 			template<typename T>
 			struct StackOperatorWrapper<LuaUEObjStrongPtr<T>>
 			{
-				static int32_t Push(lua_State* L, LuaUEObjStrongPtr<T> Value, lua_CFunction SetupMetatable = nullptr)
+				static int32_t Push(lua_State* L, LuaUEObjStrongPtr<T> Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
 					if(!Value.IsValid())
 					{
@@ -1066,14 +1407,15 @@ namespace ToLuau
 					memcpy(p, &Temp, sizeof(Temp));
 
 					// set metatable
-					auto ClassName = GetClassName<T>(Value.Get());
-					if(!HasMetaTable(L, ClassName))
+					auto RawObj = Value.Get();
+					auto ClassName = GetClassName<T>(RawObj);
+					if(!HasMetaTable<T>(L, RawObj))
 					{
 						RegClass(L, Value->GetClass());
 					}
-					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					if(SetupMetatable || HasMetaTable<T>(L, RawObj))
 					{
-						SetClassMetaTable(L, ClassName, SetupMetatable);
+						SetClassMetaTable<T>(L, RawObj, SetupMetatable, bDontRegisterMetatable);
 					}
 
 					LuaUEObjStrongPtr<UObject>& StrongObjectPtr = *static_cast<LuaUEObjStrongPtr<UObject>*>(p);
@@ -1097,7 +1439,8 @@ namespace ToLuau
 						}
 						return LuaUEObjStrongPtr<T>(Cast<T>(Weak.Get()));
 					}
-					luaL_typeerror(L, pos, "LuaUEObjStrongPtr");
+					Lua::DumpStack(L, "type error");
+					luaL_typeerror(L, pos, GetClassName<T>().c_str());
 				}
 			};
 			template<typename T> struct BuildInPushValue<LuaUEObjStrongPtr<T>> { static constexpr bool Value = true; };
@@ -1105,7 +1448,7 @@ namespace ToLuau
 			template<>
 			struct StackOperatorWrapper<FWeakObjectPtr>
 			{
-				static int32_t Push(lua_State* L, FWeakObjectPtr Value, lua_CFunction SetupMetatable = nullptr)
+				static int32_t Push(lua_State* L, FWeakObjectPtr Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
 					if(!Value.IsValid())
 					{
@@ -1119,13 +1462,13 @@ namespace ToLuau
 					// set metatable
 					auto Obj = Value.Get();
 					std::string ClassName = GetClassName<UObject>(Obj);
-					if(!HasMetaTable(L, ClassName))
+					if(!HasMetaTable<UObject>(L, Obj))
 					{
 						RegClass(L, Value.Get()->GetClass());
 					}
-					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					if(SetupMetatable || HasMetaTable<UObject>(L, Obj))
 					{
-						SetClassMetaTable(L, ClassName, SetupMetatable);
+						SetClassMetaTable<UObject>(L, Obj, SetupMetatable, bDontRegisterMetatable);
 					}
 
 					*static_cast<FWeakObjectPtr*>(p) = Value;
@@ -1147,6 +1490,7 @@ namespace ToLuau
 						}
 						return FWeakObjectPtr(Strong.Get());
 					}
+					Lua::DumpStack(L, "type error");
 					luaL_typeerror(L, pos, "LuaUEObjWeakPtr");
 				}
 			};
@@ -1172,6 +1516,7 @@ namespace ToLuau
 				{
 					if(!lua_isstring(L, Pos))
 					{
+						Lua::DumpStack(L, "type error");
 						luaL_typeerrorL(L, Pos, "string");
 					}
 					auto Path = StackOperatorWrapper<FString>::Check(L, Pos);
@@ -1183,7 +1528,7 @@ namespace ToLuau
 			template<typename T>
 			struct StackOperatorWrapper<LuaUEObjWeakPtr<T>>
 			{
-				static int32_t Push(lua_State* L, LuaUEObjWeakPtr<T> Value, lua_CFunction SetupMetatable = nullptr)
+				static int32_t Push(lua_State* L, LuaUEObjWeakPtr<T> Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
 					if(!Value.IsValid())
 					{
@@ -1195,15 +1540,16 @@ namespace ToLuau
 					void* p = lua_newuserdatatagged(L, sizeof(Temp), UD_TAG(UEObjWeakPtr));
 					memcpy(p, &Temp, sizeof(Temp));
 
-					auto ClassName = GetClassName<T>(Value.Get());
+					auto RawObj = Value.Get();
+					auto ClassName = GetClassName<T>(RawObj);
 					// set metatable
-					if(!HasMetaTable(L, ClassName))
+					if(!HasMetaTable<T>(L, RawObj))
 					{
 						RegClass(L, Value->GetClass());
 					}
-					if(HasMetaTable(L, ClassName) || SetupMetatable)
+					if(SetupMetatable || HasMetaTable<T>(L, RawObj))
 					{
-						SetClassMetaTable(L, ClassName, SetupMetatable);
+						SetClassMetaTable<T>(L, RawObj, SetupMetatable, bDontRegisterMetatable);
 					}
 
 					LuaUEObjWeakPtr<UObject>& WeakPtr = *static_cast<LuaUEObjWeakPtr<UObject>*>(p);
@@ -1227,7 +1573,8 @@ namespace ToLuau
 						}
 						return LuaUEObjWeakPtr<UObject>(Strong.Get());
 					}
-					luaL_typeerror(L, pos, "LuaUEObjWeakPtr");
+					Lua::DumpStack(L, "type error");
+					luaL_typeerror(L, pos, GetClassName<T>().c_str());
 				}
 			};
 			template<typename T> struct BuildInPushValue<LuaUEObjWeakPtr<T>> { static constexpr bool Value = true; };
@@ -1236,7 +1583,7 @@ namespace ToLuau
 #endif
 
 			template<typename T>
-			int32_t PushRawValue(lua_State* L, T Value, lua_CFunction SetupMetatable)
+			int32_t PushRawValue(lua_State* L, T Value, lua_CFunction SetupMetatable, bool bDontRegisterMetatable = false)
 			{
 				auto ClassName = ToLuau::GetClassName<T>(nullptr);
 
@@ -1247,8 +1594,20 @@ namespace ToLuau
 				NewUserData->SetValue<T>(Value);
 #if ToLuauDebug
 				NewUserData->SetDebugName(ClassName.c_str());
-#endif 	
-				SetClassMetaTable(L, ClassName, SetupMetatable);
+#endif
+#ifdef TOLUAUUNREAL_API
+				if constexpr (HasStaticStruct<T>::Value)
+				{
+					if(!HasMetaTable<T>(L,  &Value))
+					{
+						RegStruct(L, T::StaticStruct());
+					}
+				}
+#endif
+				if(SetupMetatable || HasMetaTable<T>(L, &Value))
+				{
+					SetClassMetaTable<T>(L, &Value, SetupMetatable, bDontRegisterMetatable);
+				}
 				return 1;
 			}
 
@@ -1274,14 +1633,35 @@ namespace ToLuau
 #ifdef TOLUAUUNREAL_API
 				else if (void* UESharedPtr = lua_touserdatatagged(L, Pos, UD_TAG(UESharedPtr)))
 				{
-					return *static_cast<TSharedPtr<T>*>(UESharedPtr)->Get();
+					return *static_cast<LuaUESharedPtr<T>*>(UESharedPtr)->Get();
 				}
 				else if (void* UEWeakPtr = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakPtr)))
 				{
-					TWeakPtr<T> WeakPtr = *static_cast<TWeakPtr<T>*>(UEWeakPtr);
+					LuaUEWeakPtr<T> WeakPtr = *static_cast<LuaUEWeakPtr<T>*>(UEWeakPtr);
 					if(!WeakPtr.IsValid())
 					{
-						return {};
+						if constexpr (std::is_constructible_v<T>)
+						{
+							return {};
+						}
+						TOLUAU_ASSERT(false);
+					}
+					return *WeakPtr.Pin().Get();
+				}
+				else if (void* UESharedThreadSafePtr = lua_touserdatatagged(L, Pos, UD_TAG(UESharedThreadSafePtr)))
+				{
+					return *static_cast<LuaUESharedThreadSafePtr<T>*>(UESharedThreadSafePtr)->Get();
+				}
+				else if (void* UEWeakThreadSafePtr = lua_touserdatatagged(L, Pos, UD_TAG(UEWeakThreadSafePtr)))
+				{
+					LuaUEWeakThreadSafePtr<T> WeakPtr = *static_cast<LuaUEWeakThreadSafePtr<T>*>(UEWeakThreadSafePtr);
+					if(!WeakPtr.IsValid())
+					{
+						if constexpr (std::is_constructible_v<T>)
+						{
+							return {};
+						}
+						TOLUAU_ASSERT(false);
 					}
 					return *WeakPtr.Pin().Get();
 				}
@@ -1305,9 +1685,9 @@ namespace ToLuau
 					&& !BuildInPushValue<T>::Value
 				>::type>
 			{
-				static int32_t Push(lua_State* L, T Value, lua_CFunction SetupMetatable = nullptr)
+				static int32_t Push(lua_State* L, T Value, lua_CFunction SetupMetatable = nullptr, bool bDontRegisterMetatable = false)
 				{
-					return PushRawValue<T>(L, Value, SetupMetatable);
+					return PushRawValue<T>(L, Value, SetupMetatable, bDontRegisterMetatable);
 				}
 
 				static T Check(lua_State* L, int32_t Pos)

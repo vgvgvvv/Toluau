@@ -244,6 +244,43 @@ namespace ToLuau
 		while (true);
 	}
 
+	int32 ToLuauMap::ToTable(lua_State* L)
+	{
+		auto UD = StackAPI::Check<TSharedPtr<ToLuauMap>>(L, 1);
+		if(!UD)
+		{
+			lua_pushnil(L);
+			return 1;
+		}
+		auto& Helper = UD->Helper;
+		int Num = UD->Num();
+		int Index = 0;
+		lua_newtable(L);
+		do
+		{
+			if(Num <= 0)
+			{
+				return 1;
+			}
+			else if(Helper.IsValidIndex(Index))
+			{
+				auto PairPtr = Helper.GetPairPtr(Index);
+				auto KeyPtr = UD->GetKeyPtr(PairPtr);
+				auto ValuePtr = UD->GetValuePtr(PairPtr);
+				StackAPI::UE::PushProperty(L, UD->KeyProp, KeyPtr);
+				StackAPI::UE::PushProperty(L, UD->ValueProp, ValuePtr);
+				lua_settable(L, -3);
+				Index += 1;
+				Num -= 1;
+			}
+			else
+			{
+				Index += 1;
+			}
+		}
+		while (true);
+	}
+
 	uint8* ToLuauMap::GetKeyPtr(uint8* PairPtr)
 	{
 		return PairPtr;
@@ -371,6 +408,7 @@ namespace ToLuau
 	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, Set, void(ToLuauMap::*)(LuaAnyType, LuaAnyType));
 	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, RemoveAt, void(ToLuauMap::*)(LuaAnyType));
 	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, Empty, void(ToLuauMap::*)());
+	LUAU_REG_LUA_FUNC_WITH_FUNC_TYPE(ToLuauMap, ToTable, LuaTableType(ToLuauMap::*)());
 	LUAU_REG_LUA_FUNC(ToLuauMap, Pairs);
 	LUAU_END_CLASS(ToLuauMap)
 

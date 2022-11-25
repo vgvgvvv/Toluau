@@ -9,20 +9,20 @@
 #  ifndef ToLuau_API
 #    ifdef ToLuau_EXPORTS
         /* We are building this library */
-#      define ToLuau_API __attribute__((visibility("default")))
+#      define ToLuau_API __declspec(dllexport)
 #    else
         /* We are using this library */
-#      define ToLuau_API __attribute__((visibility("default")))
+#      define ToLuau_API __declspec(dllimport)
 #    endif
 #  endif
 
 #  ifndef TOLUAU_NO_EXPORT
-#    define TOLUAU_NO_EXPORT __attribute__((visibility("hidden")))
+#    define TOLUAU_NO_EXPORT 
 #  endif
 #endif
 
 #ifndef TOLUAU_DEPRECATED
-#  define TOLUAU_DEPRECATED __attribute__ ((__deprecated__))
+#  define TOLUAU_DEPRECATED __declspec(deprecated)
 #endif
 
 #ifndef TOLUAU_DEPRECATED_EXPORT

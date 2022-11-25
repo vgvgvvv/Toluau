@@ -1,7 +1,6 @@
 ﻿#include "ToLuauVar.h"
-#include <cassert>
 #include <cmath>
-#include "Toluau/Util/Util.h"
+#include "ToLuau/Util/Util.h"
 #include "Toluau/API/ToLuauLib.h"
 
 
@@ -62,6 +61,7 @@ namespace ToLuau
 	void ToLuauVar::Init(lua_State* L, int32_t Pos, Type T)
 	{
 		OwnerState = L;
+		TOLUAU_ASSERT(OwnerState != nullptr)
 		switch (T)
 		{
 		case Type::None:
@@ -433,6 +433,7 @@ namespace ToLuau
 
 	size_t ToLuauVar::Num() const
 	{
+		TOLUAU_ASSERT(OwnerState != nullptr)
 		if(IsTable())
 		{
 			auto R = Push();
@@ -445,6 +446,7 @@ namespace ToLuau
 
 	ToLuauVar ToLuauVar::GetAt(size_t Index) const
 	{
+		TOLUAU_ASSERT(OwnerState != nullptr)
 		if(IsTable())
 		{
 			Push();
@@ -472,21 +474,44 @@ namespace ToLuau
 		{
 			LUAU_LOG("lua function is invalid");
 		}
+		TOLUAU_ASSERT(OwnerState != nullptr)
 		auto L = OwnerState;
 		int32_t Buttom = lua_gettop(L) - Argn + 1; // args...
 
-		lua_getref(L, TOLUAU_ERROR_HANDLER_REF); // args... errhandle
-		lua_insert(L, Buttom); // errhandle args...
-		Vars[0].Ref->Push(); // errhandle args... func
+		Vars[0].Ref->Push(); // args... func
 		
 		{
-			lua_insert(L, Buttom+1); // errhandle func args...
-			if(lua_pcall(L, Argn, LUA_MULTRET, Buttom) != LUA_OK)
+			lua_insert(L, Buttom); // func args...
+#if UE_EDITOR
+			try
 			{
-				lua_pop(L, 1); //
+#endif
+				if(lua_pcall(L, Argn, LUA_MULTRET, 0) != LUA_OK)
+				{
+					lua_Debug ar;
+					std::string msg = lua_tostring(L, lua_gettop(L));
+					lua_pop(L, 1); //
+
+					if (lua_getinfo(L, 0, "sln", &ar))
+					{
+						msg += ar.short_src;
+						msg += ':';
+						msg += std::to_string(ar.currentline);
+						msg += ": ";
+					}
+					msg += "\nstack backtrace:\n";
+					msg += lua_debugtrace(L);
+					Lua::Error(msg);
+				}
+#if UE_EDITOR
 			}
-			// errhandle rets...
-			lua_remove(L, Buttom); // rets... (remove err handle)
+			catch (std::exception e)
+			{
+				LUAU_ERROR_F("Call LuaVar Throw ", e.what());
+				return 0;
+			}
+#endif
+			// rets...
 		}
 		return lua_gettop(L) - Buttom + 1;
 	}
@@ -528,6 +553,7 @@ namespace ToLuau
 
 			int32 N = DoCall(NArg);
 			lua_pop(OwnerState, N);
+			return true;
 		}
 
 		int32 N = 0;
@@ -659,6 +685,7 @@ namespace ToLuau
 
 	int32_t ToLuauVar::Push() const
 	{
+		TOLUAU_ASSERT(OwnerState != nullptr)
 		if(OwnerState == nullptr)
 		{
 			return 0;

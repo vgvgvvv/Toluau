@@ -11,7 +11,7 @@
 #include <cassert>
 #include "ToLuau_API.h"
 #define TOLUAU_ASSERT(expr) \
-	assert(expr)
+	assert(expr);
 #endif
 
 #ifndef USE_TOLUAU

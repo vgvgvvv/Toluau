@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include "lua.h"
+#include "Toluau/API/StackAPI.h"
 #include "Luau/Common.h"
 
 #ifndef TOLUAUUNREAL_API
@@ -72,7 +73,7 @@ namespace ToLuau
 
 		FString StdStringToFString(const std::string& Str)
 		{
-			return FString(Str.c_str());
+			return FString(UTF8_TO_TCHAR(Str.c_str()));
 		}
 #endif
 
@@ -322,113 +323,125 @@ namespace ToLuau
 			}
 		}
 
-        void DumpStack(lua_State* L, const std::string& Title)
-        {
-            if(!Title.empty())
-            {
-                LUAU_LOG(Title);
-            }
-            auto Top = lua_gettop(L);
-            for(int i = 1; i <= Top; i ++)
-            {
-                lua_pushvalue(L, i);
-                auto TypeId = lua_type(L, -1);
-                auto TypeName = lua_typename(L, TypeId);
+		void DumpStack(lua_State* L, const std::string& Title)
+		{
+			if(!Title.empty())
+			{
+				LUAU_LOG(Title);
+			}
+			auto Top = lua_gettop(L); // 
+			for(int i = 1; i <= Top; i ++)
+			{
+				StackAPI::AutoStack AutoStack(L);
+				lua_pushvalue(L, i);
+				auto TypeId = lua_type(L, -1);
+				auto TypeName = lua_typename(L, TypeId);
 
-                if(lua_isnumber(L, -1) || lua_isstring(L, -1))
-                {
-                    auto CharStr = lua_tostring(L, -1);
-                    LUAU_LOG_F("%d - %s (%s)", i, TypeName, CharStr);
-                }
-                else if(lua_istable(L, -1))
-                {
-                    LUAU_LOG_F("%d - %s", i, TypeName);
-                    DumpTable(L, -1, 1);
-                }
-            	else if(lua_isuserdata(L, -1)) 
-                {
-            		lua_getmetatable(L, -1); // value mt
-            		if(!lua_istable(L, -1))
-            		{
-            			lua_pop(L, 1);
-            			LUAU_LOG_F("%d - %s", i, TypeName);
-            		}
-                    else
-                    {
+				if(lua_isnumber(L, -1) || lua_isstring(L, -1))
+				{
+					auto CharStr = lua_tostring(L, -1);
+					LUAU_LOG_F("%d - %s (%s)", i, TypeName, CharStr);
+				}
+				else if(lua_istable(L, -1))
+				{
+					LUAU_LOG_F("%d - %s", i, TypeName);
+					DumpTable(L, -1, 1);
+				}
+				else if(lua_isuserdata(L, -1)) 
+				{
+					int32_t TagId = lua_userdatatag(L, -1);
+					std::string TagName;
+					if(TagId <= 0 || TagId >= (int32_t)ToLuau::StackAPI::UserDataType::Max)
+					{
+						TagName = ToLuau::StringEx::Format("Invalid(%d)", TagId); 
+					}
+					else
+					{
+						TagName = ToLuau::StackAPI::UserDataTypeNames[TagId];
+					}
+					
+					lua_getmetatable(L, -1); // value mt
+					if(!lua_istable(L, -1)) // value mt
+					{
+						LUAU_LOG_F("%d - %s", i, TypeName);
+					}
+					else
+					{
 						lua_getfield(L, -1, "__type"); // value mt name
-                    	if(!lua_isstring(L, -1))
-                    	{
-                    		lua_pop(L, 2);
-                    		LUAU_LOG_F("%d - %s", i, TypeName);
-                    	}
-                    	else
-                    	{
-                    		std::string UserDataName = lua_tostring(L, -1);
-                    		LUAU_LOG_F("%d - %s(%s)", i, TypeName, UserDataName.c_str());
-                    		lua_pop(L, 2);
-                    	}
-                    }
-                }
-                else
-                {
-                    LUAU_LOG_F("%d - %s", i, TypeName);
-                }
-                lua_pop(L, 1);
-            }
-        }
+						if(!lua_isstring(L, -1))
+						{
+							LUAU_LOG_F("%d - %s - tag:%s", i, TypeName, TagName.c_str());
+						}
+						else
+						{
+							std::string UserDataName = lua_tostring(L, -1);
+							LUAU_LOG_F("%d - %s(%s) - tag:%s", i, TypeName, UserDataName.c_str(), TagName.c_str());
+						}
+					}
+				}
+				else
+				{
+					LUAU_LOG_F("%d - %s", i, TypeName);
+				}
+			}
+		}
 
-        // ref from https://stackoverflow.com/questions/6137684/iterate-through-lua-table
-        void DumpTable(lua_State *L, int32_t Index, int32_t Level)
-        {
-            std::string levelStr;
-            for(int i = 0; i < Level; i ++)
-            {
-                levelStr += "\t";
-            }
-            // Push another reference to the table on top of the stack (so we know
-            // where it is, and this function can work for negative, positive and
-            // pseudo indices
-            lua_pushvalue(L, Index);
-            // stack now contains: -1 => table
-            lua_pushnil(L);
-            // stack now contains: -1 => nil; -2 => table
-            while (lua_next(L, -2))
-            {
-                // stack now contains: -1 => value; -2 => key; -3 => table
-                // copy the key so that lua_tostring does not modify the original
-                lua_pushvalue(L, -2);
-                // stack now contains: -1 => key; -2 => value; -3 => key; -4 => table
-                const char *key = lua_tostring(L, -1);
-                auto TypeId = lua_type(L, -2);
-                auto TypeName = lua_typename(L, TypeId);
-                if(lua_isnumber(L, -2) || lua_isstring(L, -2))
-                {
-                    const char *value = lua_tostring(L, -2);
-                    LUAU_LOG_F("%s%s => %s(%s)", levelStr.c_str(), key, TypeName, value);
-                }
-                else if(lua_istable(L, -2))
-                {
-                    const char *value = lua_tostring(L, -2);
-                    LUAU_LOG_F("%s%s => %s", levelStr.c_str(), key, TypeName);
-                    DumpTable(L, -2, Level+1);
-                }
-                else
-                {
-                    const char *value = lua_tostring(L, -2);
-                    LUAU_LOG_F("%s%s => %s", levelStr.c_str(), key, TypeName);
-                }
-                // pop value + copy of key, leaving original key
-                lua_pop(L, 2);
-                // stack now contains: -1 => key; -2 => table
-            }
-            // stack now contains: -1 => table (when lua_next returns 0 it pops the key
-            // but does not push anything.)
-            // Pop table
-            lua_pop(L, 1);
-            // Stack is now the same as it was on entry to this function
+		// ref from https://stackoverflow.com/questions/6137684/iterate-through-lua-table
+		void DumpTable(lua_State *L, int32_t Index, int32_t Level)
+		{
+			if(Level > 3)
+			{
+				return;
+			}
+			std::string levelStr;
+			for(int i = 0; i < Level; i ++)
+			{
+				levelStr += "\t";
+			}
+			// Push another reference to the table on top of the stack (so we know
+			// where it is, and this function can work for negative, positive and
+			// pseudo indices
+			lua_pushvalue(L, Index);
+			// stack now contains: -1 => table
+			lua_pushnil(L);
+			// stack now contains: -1 => nil; -2 => table
+			while (lua_next(L, -2))
+			{
+				// stack now contains: -1 => value; -2 => key; -3 => table
+				// copy the key so that lua_tostring does not modify the original
+				lua_pushvalue(L, -2);
+				// stack now contains: -1 => key; -2 => value; -3 => key; -4 => table
+				const char *key = lua_tostring(L, -1);
+				auto TypeId = lua_type(L, -2);
+				auto TypeName = lua_typename(L, TypeId);
+				if(lua_isnumber(L, -2) || lua_isstring(L, -2))
+				{
+					const char *value = lua_tostring(L, -2);
+					LUAU_LOG_F("%s%s => %s(%s)", levelStr.c_str(), key, TypeName, value);
+				}
+				else if(lua_istable(L, -2))
+				{
+					const char *value = lua_tostring(L, -2);
+					LUAU_LOG_F("%s%s => %s", levelStr.c_str(), key, TypeName);
+					DumpTable(L, -2, Level+1);
+				}
+				else
+				{
+					const char *value = lua_tostring(L, -2);
+					LUAU_LOG_F("%s%s => %s", levelStr.c_str(), key, TypeName);
+				}
+				// pop value + copy of key, leaving original key
+				lua_pop(L, 2);
+				// stack now contains: -1 => key; -2 => table
+			}
+			// stack now contains: -1 => table (when lua_next returns 0 it pops the key
+			// but does not push anything.)
+			// Pop table
+			lua_pop(L, 1);
+			// Stack is now the same as it was on entry to this function
 
-        }
+		}
 
-    }
+	}
 
 }

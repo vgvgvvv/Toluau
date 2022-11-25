@@ -45,11 +45,8 @@ namespace ToLuau
 
 		static std::shared_ptr<ILuauChunkLoader> Create(ILuauState* Owner);
 
-#if ToLuauDebug
-		virtual bool Require(const std::string& Path, bool ForceReload = true) const = 0;
-#else
 		virtual bool Require(const std::string& Path, bool ForceReload = false) const = 0;
-#endif
+		
 		virtual bool RequireFromFile(const std::string& Path, const std::string& FileName, bool ForceReload) const = 0;
 
 		const std::vector<std::string>& GetLoadPaths() const;
