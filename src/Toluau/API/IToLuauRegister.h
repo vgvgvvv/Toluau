@@ -71,7 +71,7 @@ namespace ToLuau
 		template<typename TClass>
 		void BeginClass(bool Append = true)
 		{
-			static_assert(!TIsEnum<TClass>::Value, "please use begin enum !!");
+			static_assert(!std::is_enum<TClass>::value, "please use begin enum !!");
 			
 #if LUAU_SUPPORT_HOYO_CLASS
 			if constexpr (HasStaticHoYoClass<TClass>::Value)
@@ -115,7 +115,7 @@ namespace ToLuau
 		template<typename TClass, typename TBaseClass>
 		void BeginClass(bool Append = true)
 		{
-			static_assert(!TIsEnum<TClass>::Value, "please use begin enum !!");
+			static_assert(!std::is_enum<TClass>::Value, "please use begin enum !!");
 			
 #if LUAU_SUPPORT_HOYO_CLASS
 			if constexpr (HasStaticHoYoClass<TClass>::Value)
