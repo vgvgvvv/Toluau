@@ -37,3 +37,6 @@
 /.vs/
 /build/
 /.vscode/
+CustomModuleList.txt
+*.Target.json
+*_API.h

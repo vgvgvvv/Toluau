@@ -6,6 +6,7 @@ include(InitProject.cmake)
 InitProject()
 
 ReMake_AddSubDirsRec(src)
+ReMake_AddSubDirsRec(thirdparty)
 
 set(IsRoot "")
 IsRootProject(IsRoot)
