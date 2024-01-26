@@ -344,7 +344,7 @@ namespace ToLuau
 			ToLuauVar LocalFunc(L, Pos);
 			if(LocalFunc.IsValid() && LocalFunc.IsFunction())
 			{
-				if constexpr (!TIsSame<ReturnType, void>::Value)
+				if constexpr (!std::is_same_v<ReturnType, void>)
 				{
 					return [=](ArgTypes&& ... Args) -> ReturnType
 					{
